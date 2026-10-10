@@ -54,6 +54,7 @@ const zustand = {
   needsSetup: false,
   mediaServerLogin: false,
   mediaServerWays: [],
+  passwordLogin: true,
   login: vi.fn(),
   loginWithTokens: vi.fn(),
   completeSetup: vi.fn(),

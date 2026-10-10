@@ -100,6 +100,19 @@ export default defineConfig({
       timeout: 120_000,
     },
 
+    // ── Ein nachgebauter Anmelde-Anbieter (nexoidc.spec.ts) ───────────────
+    //
+    // OpenID Connect ohne echten Anbieter und ohne Netz: Discovery, Schlüssel,
+    // Token und userinfo aus `e2e/fake-oidc.mjs`. ⚠️ Port 8794: 8799 bis 8796 gehören
+    // dem Haupt- und dem Unterpfad-Aufbau, 8795 bleibt frei (Radarr ins Leere).
+    {
+      command: 'node e2e/fake-oidc.mjs 8794',
+      cwd: hier,
+      url: 'http://127.0.0.1:8794/.well-known/openid-configuration',
+      reuseExistingServer: false,
+      timeout: 30_000,
+    },
+
     // ── Der Unterpfad-Aufbau (unterpfad.spec.ts) ──────────────────────────
     //
     // Nexview unter https://…/nexview/ gibt es in keiner Entwicklungs-

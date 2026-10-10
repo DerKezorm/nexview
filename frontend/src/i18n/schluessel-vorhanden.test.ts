@@ -28,6 +28,9 @@ import deWasNeu from './de.wasneu.json'
 import enDownloads from './en.downloads.json'
 import en from './en.json'
 import enWasNeu from './en.wasneu.json'
+import oidcDe from '../vendor/nexoidc/oidc.de.json'
+import oidcEn from '../vendor/nexoidc/oidc.en.json'
+import { oidcWording } from '../vendor/nexoidc/oidc'
 
 /**
  * Alle Knoten, nicht nur die Blätter.
@@ -58,12 +61,23 @@ function kennt(menge: Set<string>, schluessel: string): boolean {
    Wer hier nur `de.json` prüft, hält jeden dieser Schlüssel fälschlich für
    fehlend; wer nur die eine Datei prüft, sieht den Rest nicht. Geprüft wird
    deshalb, was am Ende im Namensraum steht. Dasselbe gilt für die Texte der
-   Seite Downloads (`i18n/downloads.ts`), die unter `downloads` einhängen. */
+   Seite Downloads (`i18n/downloads.ts`), die unter `downloads` einhängen, und
+   für die Texte der Anmeldung über Anbieter (`oidc`, gemeinsames Modul). */
 const deutsch = new Set(
-  knoten({ ...de, whatsNew: { ...de.whatsNew, ...deWasNeu.whatsNew }, ...deDownloads }),
+  knoten({
+    ...de,
+    whatsNew: { ...de.whatsNew, ...deWasNeu.whatsNew },
+    ...deDownloads,
+    ...oidcWording(oidcDe, { singleAccount: false }),
+  }),
 )
 const englisch = new Set(
-  knoten({ ...en, whatsNew: { ...en.whatsNew, ...enWasNeu.whatsNew }, ...enDownloads }),
+  knoten({
+    ...en,
+    whatsNew: { ...en.whatsNew, ...enWasNeu.whatsNew },
+    ...enDownloads,
+    ...oidcWording(oidcEn, { singleAccount: false }),
+  }),
 )
 
 const DATEIEN = import.meta.glob('../**/*.{ts,tsx}', {

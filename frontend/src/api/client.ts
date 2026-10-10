@@ -13,6 +13,7 @@
  */
 
 import i18n from '../i18n'
+import { oidcErrorKey, oidcFormErrorKey } from '../vendor/nexoidc/oidc'
 import { mitBasis } from '../lib/basis'
 
 /**
@@ -135,6 +136,12 @@ export function uebersetzeFehler(detail: Record<string, unknown>, status: number
 
   const sonderfall = MIT_EIGENER_LOGIK[code]
   if (sonderfall) return sonderfall(detail)
+
+  // Die festen Codes der Anmeldung über Anbieter bringen ihre Sätze mit dem
+  // gemeinsamen Modul mit (`oidc.error.*`, `oidc.formError.*`) – in jeder
+  // nex-App dieselben Wörter.
+  const anmeldung = oidcErrorKey(code) ?? oidcFormErrorKey(code)
+  if (anmeldung && i18n.exists(anmeldung)) return i18n.t(anmeldung, { ...detail })
 
   const schluessel = `errors.byCode.${code}`
   // Die Zahlen aus der Antwort stehen als Platzhalter zur Verfügung, damit

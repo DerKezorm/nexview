@@ -20,7 +20,7 @@ import logging
 import secrets
 import time
 from collections.abc import Callable
-from typing import Any
+from typing import Any, ClassVar
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
@@ -223,3 +223,48 @@ class SicherheitskopfMiddleware:
             await send(message)
 
         await self.app(scope, receive, send_wrapper)
+
+
+class WeitergereichtesSchemaMiddleware:
+    """Das Schema, das ein vertrauter Proxy nennt (``X-Forwarded-Proto``).
+
+    Hinter einem Proxy, der TLS beendet, kommt die Anfrage als ``http`` an, und
+    jede Adresse, die Nexview daraus baut (Rueckleitadresse der Anmeldung ueber
+    einen Anbieter, ``Secure`` an Cookies im Modus ``auto``), waere eine
+    ``http``-Adresse. Gelesen wird der Kopf nur, wenn Nexview seinem Proxy schon
+    vertraut: ``NEXVIEW_CLIENT_IP=proxy`` (oder ``proxy:N``) sagt, dass die
+    Anfragen ueber ihn kommen - dieselbe Einstellung, nach der die
+    Anmeldebremse die Adresse aus ``X-Forwarded-For`` liest. Ohne sie bleibt
+    alles wie bisher, und ein fremder Absender setzt hier nichts.
+
+    Genommen wird der **rechteste** Wert der letzten Kopfzeile: den hat der
+    eigene Proxy angehaengt, alles links davon kann ein Besucher mitgeschickt
+    haben. Nur ``http`` und ``https``, ohne Ruecksicht auf Gross und klein;
+    eine WebSocket-Verbindung bekommt ``ws`` bzw. ``wss``. Nur das Schema, nie
+    der Host (der kommt aus ``Host``, wie der Proxy ihn weitergibt).
+    """
+
+    SCHEMATA: ClassVar[dict[str, str]] = {"http": "http", "https": "https"}
+    SOCKETS: ClassVar[dict[str, str]] = {"http": "ws", "https": "wss"}
+
+    def __init__(self, app: Any) -> None:
+        self.app = app
+
+    async def __call__(self, scope: dict, receive: Callable, send: Callable) -> None:
+        if scope["type"] in ("http", "websocket") and _proxy_vertraut():
+            schema = None
+            for name, wert in scope.get("headers", []):
+                if name == b"x-forwarded-proto":
+                    schema = wert.decode("latin-1").split(",")[-1].strip().lower()
+            if schema in self.SCHEMATA:
+                tabelle = self.SOCKETS if scope["type"] == "websocket" else self.SCHEMATA
+                scope["scheme"] = tabelle[schema]
+        await self.app(scope, receive, send)
+
+
+def _proxy_vertraut() -> bool:
+    """Steht Nexview laut ``NEXVIEW_CLIENT_IP`` hinter einem Proxy?"""
+    from .config import get_settings
+
+    einstellung = (get_settings().client_ip or "").strip().lower()
+    return einstellung == "proxy" or einstellung.startswith("proxy:")

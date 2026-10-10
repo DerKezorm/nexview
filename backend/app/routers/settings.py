@@ -12,14 +12,23 @@ from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
 import httpx
-from fastapi import APIRouter, HTTPException, Path
+from fastapi import APIRouter, HTTPException, Path, Request, status
 from pydantic import BaseModel, Field, field_validator
 
 from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import Fassung, Hausordnung, MediaType, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
-from ..services import beschaffung, cache, fassungen, mail, mail_templates, status_poller, umstieg
+from ..services import (
+    beschaffung,
+    cache,
+    fassungen,
+    mail,
+    mail_templates,
+    oidc_store,
+    status_poller,
+    umstieg,
+)
 from ..services.mediaserver import (
     PROVIDERS,
     merklisten_anbieter,
@@ -34,6 +43,8 @@ from ..services.settings_service import (
     save_settings,
 )
 from ..services.tmdb import TmdbClient, TmdbError
+from ..vendor.nexoidc import flow
+from . import oidc as oidc_router
 
 router = APIRouter(prefix="/api", tags=["settings"])
 
@@ -130,6 +141,8 @@ class SettingsUpdate(BaseModel):
     webhook_basis_url: str | None = Field(default=None, max_length=255)
     # Taegliche Nachfrage bei GitHub nach einer neueren Version.
     update_check: bool | None = None
+    # Anmeldung mit Passwort fuer alle (Bauplan 01); aus nur mit aktivem Anbieter.
+    password_login: bool | None = None
     # --- Sicherungen -------------------------------------------------------
     # Regelmaessig sichern. Bis 0.22 entstand eine automatische Sicherung nur
     # bei einer Schemaaenderung - also praktisch nur beim Update.
@@ -583,7 +596,13 @@ def _wechsel_am_assistenten_vorbei_ablehnen(db: DbSession, payload: SettingsUpda
 
 
 @router.put("/settings")
-def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) -> dict[str, object]:
+def update_settings(
+    payload: SettingsUpdate,
+    request: Request,
+    admin: AdminUser,
+    db: DbSession,
+    confirm_address: bool = False,
+) -> dict[str, object]:
     if payload.demo_mode is not None and payload.demo_mode not in {"auto", "on", "off"}:
         raise HTTPException(
             status_code=422,
@@ -697,7 +716,9 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
                 "Die Absenderadresse ist ungültig.",
             ),
         )
-    if payload.public_url and not payload.public_url.strip().startswith(("http://", "https://")):
+    if payload.public_url and not payload.public_url.strip().lower().startswith(
+        ("http://", "https://")
+    ):
         raise HTTPException(
             status_code=422,
             detail=meldungen.meldung(
@@ -713,6 +734,36 @@ def update_settings(payload: SettingsUpdate, admin: AdminUser, db: DbSession) ->
             detail=meldungen.meldung(
                 "public_url_needs_scheme",
                 "Die öffentliche Adresse muss mit http:// oder https:// beginnen.",
+            ),
+        )
+
+    if payload.public_url is not None:
+        neu = payload.public_url.strip().rstrip("/")
+        if neu:
+            # Nie lockerer als das Anmeldemodul: Die Adresse landet in jeder
+            # Rueckleitadresse, in Links und im Cookie-Pfad.
+            try:
+                neu = flow.clean_public_url(neu)
+            except ValueError as fehler:
+                raise HTTPException(
+                    status_code=422,
+                    detail=meldungen.meldung(
+                        "public_url_invalid", "Diese Adresse lässt sich nicht verwenden."
+                    ),
+                ) from fehler
+            payload.public_url = neu
+        if neu != aktuell.public_url:
+            # Aendert sich, was authentik als Rueckleitadresse kennt, oder die
+            # eines Anbieters von Hand, fragt die Seite zurueck - auch beim Leeren.
+            # ``?confirm_address=true`` ist die Antwort auf diese Rueckfrage.
+            oidc_router.adresse_bewachen(db, neu, request, bestaetigt=confirm_address)
+    if payload.password_login is False and not oidc_store.anbieter_aktiv(db):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=meldungen.meldung(
+                "password_login_needs_provider",
+                "Die Anmeldung mit Passwort lässt sich erst abschalten, wenn ein "
+                "Anmelde-Anbieter aktiv ist.",
             ),
         )
 

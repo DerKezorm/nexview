@@ -1,58 +1,83 @@
 /**
- * „Anmelden über" – die Knöpfe der eingerichteten OIDC-Anbieter.
+ * Die Knöpfe der eingerichteten Anmelde-Anbieter – auf der Anmeldeseite und,
+ * mit `invite`, auf der Einladungsseite.
  *
- * Anders als die Medienserver-Reihe sind das volle Knöpfe mit Beschriftung
- * statt einer Logoreihe: Die Anbieter sind frei benannt („Familien-SSO",
- * „Google"), ein Logo gibt es nicht – und meistens steht hier ohnehin genau
- * einer.
+ * Aufbau und Wörter aus dem Bauplan „Anmeldung mit OIDC und authentik“ (04):
+ * eine Trennlinie „oder“, darunter je aktivem Anbieter ein Knopf „Mit {{name}}
+ * anmelden“ (Einladung: „Weiter mit {{name}}“) in der Reihenfolge der Liste.
  *
  * ⚠️ **Der Klick ist eine Navigation, kein API-Aufruf.** Der ganze Browser
- * fährt zum Anbieter und kommt über die Rückkehr-Adresse wieder – deshalb
+ * fährt zum Anbieter und kommt über die Rückleitadresse wieder – deshalb
  * `window.location` statt `fetch`, und deshalb braucht die Adresse den
- * Unterpfad-Vorbau (`mitBasis`).
+ * Unterpfad-Vorbau (`mitBasis`). Die Einladung reist als Schlüssel im
+ * Anlauf-Cookie zum Anbieter und zurück (`?invite=` am Start), nie über die
+ * Mailadresse.
  *
- * Die Liste kommt ohne Anmeldung vom Server; ist sie leer, existiert dieser
- * Block nicht – die Anmeldeseite sieht dann exakt aus wie immer.
+ * Die Liste kommt ohne Anmeldung vom Server; ist sie leer, gibt es diesen
+ * Block nicht.
  */
 
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
 import { api } from '../api/client'
-import type { OidcAnbieter } from '../api/types'
+import type { OidcKnopf } from '../api/types'
 import { mitBasis } from '../lib/basis'
 import { Button } from './ui'
 
-export function OidcLoginRow() {
-  const { t } = useTranslation()
-  const { data: anbieter } = useQuery({
-    queryKey: ['oidc-anbieter'],
-    queryFn: () => api.get<OidcAnbieter[]>('/api/auth/oidc', { auth: false }),
-    // Die Anmeldeseite kann lange offen stehen; die Knöpfe ändern sich nur,
-    // wenn der Administrator etwas ändert. Kein Grund, ständig nachzufragen.
+/** Die aktiven Anbieter – dieselbe Abfrage für Anmelde-, Einladungs- und Kontoseite. */
+function useOidcKnoepfe() {
+  return useQuery({
+    queryKey: ['oidc-knoepfe'],
+    queryFn: () => api.get<OidcKnopf[]>('/api/oidc/providers', { auth: false }),
+    // Die Seite kann lange offen stehen; die Knöpfe ändern sich nur, wenn der
+    // Betreiber etwas ändert.
     staleTime: 5 * 60 * 1000,
   })
+}
 
-  if (!anbieter || anbieter.length === 0) return null
+/** Wohin der Knopf führt: der Start beim Anbieter, mit Einladung. */
+function startAdresse(slug: string, invite?: string): string {
+  const pfad = `/api/oidc/${encodeURIComponent(slug)}/start`
+  return mitBasis(invite ? `${pfad}?invite=${encodeURIComponent(invite)}` : pfad)
+}
+
+export function OidcLoginRow({
+  invite,
+  ohneTrennlinie = false,
+}: {
+  /** Der Schlüssel der Einladung: dann heißen die Knöpfe „Weiter mit …“. */
+  invite?: string
+  /** Ohne Passwortformular darüber braucht es kein „oder“. */
+  ohneTrennlinie?: boolean
+}) {
+  const { t } = useTranslation()
+  const { data: anbieter } = useOidcKnoepfe()
+
+  if (!Array.isArray(anbieter) || anbieter.length === 0) return null
 
   return (
-    <div className="mt-6 border-t border-ink-700 pt-5">
-      <p className="text-center text-xs uppercase tracking-wider text-mist-600">
-        {t('login.oidcHeading')}
-      </p>
-      <div className="mt-3 flex flex-col gap-2">
+    <div className="mt-6" data-testid="oidc-knoepfe">
+      {!ohneTrennlinie && (
+        <div className="flex items-center gap-3 text-xs uppercase tracking-wider text-mist-600">
+          <span className="h-px flex-1 bg-ink-700" aria-hidden="true" />
+          <span>{t('oidc.login.or')}</span>
+          <span className="h-px flex-1 bg-ink-700" aria-hidden="true" />
+        </div>
+      )}
+      <div className="mt-4 flex flex-col gap-2">
         {anbieter.map((eintrag) => (
           <Button
             key={eintrag.slug}
             variant="ghost"
             className="w-full"
             onClick={() => {
-              window.location.href = mitBasis(
-                `/api/auth/oidc/${encodeURIComponent(eintrag.slug)}/login`,
-              )
+              window.location.href = startAdresse(eintrag.slug, invite)
             }}
           >
-            {t('login.oidcWith', { name: eintrag.label })}
+            {invite
+              ? t('oidc.invite.button', { name: eintrag.label })
+              : t('oidc.login.button', { name: eintrag.label })}
           </Button>
         ))}
       </div>

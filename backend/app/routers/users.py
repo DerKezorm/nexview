@@ -39,7 +39,7 @@ from ..services import (
     kontorechte,
     mail,
     mediaserver_accounts,
-    oidc_accounts,
+    oidc_store,
     quota,
     serverkonten,
     tokens,
@@ -1014,6 +1014,6 @@ async def delete_user(
     mediaserver_accounts.block(db, user, by=admin.id)
     # Dieselbe Sperre fuer die OIDC-Wege: Mit eingeschalteter automatischer
     # Anlage legte dieselbe Identitaet sich sonst sofort ein neues Konto an.
-    oidc_accounts.block(db, user, by=admin.id)
+    oidc_store.sperren(db, user, by=admin.id)
     db.delete(user)
     db.commit()

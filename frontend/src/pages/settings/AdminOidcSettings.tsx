@@ -1,774 +1,866 @@
 /**
- * Anmeldung über fremde Anbieter (OIDC) – die Verwaltung.
+ * Einstellungen → Anmeldung: drei Karten untereinander, wie der Bauplan
+ * „Anmeldung mit OIDC und authentik“ (04) sie für jede nex-App festlegt.
+ * Reihenfolge, Wörter und Verhalten kommen von dort; die Bauteile (Karte,
+ * Schalter, Feld, Knopf, Rückfrage) sind Nexviews eigene.
  *
- * Der Unterschied zur Konfigurationsdatei, die andere dafür anbieten: Hier
- * steht die Rückkehr-Adresse zum Kopieren, ein Prüf-Knopf sagt sofort, ob
- * unter der Adresse ein Anbieter antwortet, und das Löschen warnt mit Namen,
- * wen es aussperren würde.
+ * 1. Anmeldung: Passwort-Anmeldung (gesperrt an, solange kein Anbieter aktiv
+ *    ist) und die öffentliche Adresse. Einen zweiten Faktor hat Nexview nicht.
+ * 2. Anmeldeanbieter: die Liste mit Marken, Ziehgriff und dem Formular als
+ *    Fenster.
+ * 3. authentik in einem Schritt: Adresse, Token, „Einrichten“, der Blueprint
+ *    und die Schritte samt Grund eines Fehlschlags. Ohne öffentliche Adresse
+ *    schlägt die Karte die des Browsers vor und trägt nie eine geratene ein.
  *
- * ⚠️ **Der Auto-Anlage-Schalter trägt seine Warnung im Text.** Bei einem
- * selbst gehosteten Anbieter ist er der Normalfall – wer dort ein Konto hat,
- * wurde vom selben Administrator angelegt. Bei Google oder Microsoft hat
- * *jeder Mensch* ein Konto; derselbe Schalter heißt dort „jeder bekommt ein
- * Nexview-Konto". Die Oberfläche sagt das an der Stelle, an der es kippen
- * kann, nicht in einer Doku, die niemand offen hat.
- *
- * ⚠️ **Was eingetragen ist, lässt sich ändern.** Lange schickte diese Seite
- * nur die zwei Schalter, obwohl das Backend längst alles entgegennimmt. Wer
- * sich beim Client-Geheimnis vertippte, hatte genau einen Weg: löschen und neu
- * anlegen – und davor warnt Nexview selbst, weil es Konten aussperren kann,
- * deren einziger Weg hinein dieser Anbieter ist. Ein Tippfehler darf nicht in
- * die gefährlichste Handlung der Seite zwingen.
+ * Darunter, Nexviews eigene: die Sperrliste gelöschter Konten.
  */
 
-import { useState } from 'react'
-import type { FormEvent } from 'react'
+import { useEffect, useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { ApiError, api } from '../../api/client'
-import type { AppSettings, OidcAdminEintrag, OidcPruefErgebnis } from '../../api/types'
+import { ApiError, api, downloadFile } from '../../api/client'
+import type {
+  AppSettings,
+  AuthentikErgebnis,
+  OidcAnbieter,
+  OidcAnbieterForm,
+  OidcFolgen,
+  OidcSperre,
+} from '../../api/types'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { Fenster } from '../../components/Fenster'
 import { Button, ErrorBanner, Field, Section } from '../../components/ui'
-import { useConfig } from '../../hooks/useConfig'
+import { BASIS } from '../../lib/basis'
+import { adressFrageAus, type AdressFrage } from '../../lib/adressFrage'
+import { AdressFrageText } from '../../components/AdressFrageText'
+import {
+  authentikIssuerChange,
+  authentikProposal,
+  authentikProxyWarning,
+  authentikReasonKey,
+  authentikRedirect,
+  authentikStale,
+  authentikStepKey,
+  oidcErrorKey,
+  oidcFormErrorKey,
+  slugFromLabel,
+  type AuthentikAddress,
+} from '../../vendor/nexoidc/oidc'
 
-const LEER = {
-  slug: '',
-  label: '',
-  issuer_url: '',
-  client_id: '',
-  client_secret: '',
-  auto_create: false,
-}
-
-/**
- * Die Rückkehr-Adresse, so wie der Server sie bildet.
- *
- * ⚠️ **Muss mit `_als_admin` im Backend übereinstimmen** (öffentliche Adresse
- * + `/api/auth/oidc/<kürzel>/callback`). Eine hier abweichend gebaute Adresse
- * wäre der teuerste denkbare Anzeigefehler: Der Administrator trägt sie beim
- * Anbieter ein, und schief geht es erst beim ersten Anmeldeversuch – mit einer
- * Fehlermeldung des Anbieters, die auf Nexview nicht hinweist.
- */
-function rueckkehrAdresse(oeffentlicheAdresse: string, slug: string): string {
-  const basis = oeffentlicheAdresse.trim().replace(/\/+$/, '')
-  const kuerzel = slug.trim().toLowerCase()
-  if (!basis || !kuerzel) return ''
-  return `${basis}/api/auth/oidc/${kuerzel}/callback`
-}
+const ANBIETER = ['oidc-admin-anbieter']
 
 export function AdminOidcSettings() {
-  const { t } = useTranslation()
-  const { data: config } = useConfig()
-  const queryClient = useQueryClient()
-  const [fehler, setFehler] = useState<string | null>(null)
-
-  const { data: eintraege } = useQuery({
-    queryKey: ['admin-oidc'],
-    queryFn: () => api.get<OidcAdminEintrag[]>('/api/admin/oidc'),
+  const anbieter = useQuery({
+    queryKey: ANBIETER,
+    queryFn: () => api.get<OidcAnbieter[]>('/api/oidc/admin/providers'),
   })
-
-  const neuLaden = () => {
-    void queryClient.invalidateQueries({ queryKey: ['admin-oidc'] })
-    // Die Anmeldeseite und das Profil zeichnen ihre Knöpfe aus derselben
-    // Liste - nach jeder Änderung hier soll dort nicht der alte Stand stehen.
-    void queryClient.invalidateQueries({ queryKey: ['oidc-anbieter'] })
-  }
-
+  const liste = anbieter.data ?? []
+  const aktiv = liste.some((eintrag) => eintrag.enabled)
+  const gekoppelt = liste.some((eintrag) => eintrag.managed === 'nexsuite')
   return (
     <div className="flex flex-col gap-6">
-      <Section title={t('adminOidc.title')}>
-        <p className="text-sm text-mist-500">{t('adminOidc.intro')}</p>
-
-        {/* Ohne öffentliche Adresse lässt der Server nichts anlegen - die
-            Rückkehr-Adresse entstünde aus dem Nichts. Der Hinweis steht hier,
-            damit niemand das Formular ausfüllt, um es dann abgewiesen zu
-            bekommen. */}
-        {config && !config.public_url_set && (
-          <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-            {t('adminOidc.needsPublicUrl')}
-          </p>
-        )}
-
-        {(eintraege ?? []).map((eintrag) => (
-          <AnbieterKarte key={eintrag.id} eintrag={eintrag} onAenderung={neuLaden} />
-        ))}
-        {eintraege && eintraege.length === 0 && config?.public_url_set && (
-          <p className="text-sm text-mist-500">{t('adminOidc.empty')}</p>
-        )}
-      </Section>
-
-      {config?.public_url_set && (
-        <NeuerAnbieter
-          onAngelegt={() => {
-            setFehler(null)
-            neuLaden()
-          }}
-          onFehler={setFehler}
-        />
-      )}
-
+      <AnmeldungKarte irgendeinerAktiv={aktiv} />
+      <AnbieterKarte liste={anbieter.data ?? null} />
+      <AuthentikKarte gekoppelt={gekoppelt} />
       <Sperrliste />
-      {fehler && <ErrorBanner message={fehler} />}
     </div>
   )
 }
 
-/**
- * Gesperrte Identitäten – entstanden still beim Löschen eines Kontos.
- *
- * Die Karte erscheint nur, wenn es Einträge gibt: Eine dauerhaft sichtbare
- * leere Sperrliste wäre eine Einstellung ohne Gegenstand. Ohne diese Ansicht
- * wäre eine Sperre für immer.
- */
-function Sperrliste() {
+// --- Bauteile ------------------------------------------------------------------------------------
+
+function Schalter({
+  label,
+  hinweis,
+  checked,
+  disabled,
+  onChange,
+}: {
+  label: string
+  hinweis?: ReactNode
+  checked: boolean
+  disabled?: boolean
+  onChange: (wert: boolean) => void
+}) {
+  return (
+    <label className="flex items-start gap-3 text-sm">
+      <input
+        type="checkbox"
+        checked={checked}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.checked)}
+        className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500 disabled:opacity-50"
+      />
+      <span>
+        <span className="font-medium text-mist-200">{label}</span>
+        {hinweis && <span className="block text-xs text-mist-500">{hinweis}</span>}
+      </span>
+    </label>
+  )
+}
+
+function Kopieren({ text }: { text: string }) {
+  const { t } = useTranslation()
+  const [kopiert, setKopiert] = useState(false)
+  return (
+    <div className="mt-1 flex items-center gap-2">
+      <code
+        className="min-w-0 flex-1 break-all rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-xs text-mist-300"
+        data-testid="rueckleitadresse"
+      >
+        {text}
+      </code>
+      <Button
+        type="button"
+        variant="ghost"
+        onClick={() => {
+          void navigator.clipboard?.writeText(text)
+          setKopiert(true)
+        }}
+      >
+        {kopiert ? t('anmeldung.copied') : t('anmeldung.copy')}
+      </Button>
+    </div>
+  )
+}
+
+function Hinweis({ ton, children, testId }: { ton: 'warn' | 'ok'; children: ReactNode; testId?: string }) {
+  return (
+    <div
+      data-testid={testId}
+      className={
+        'rounded-xl border px-3 py-2 text-xs leading-relaxed ' +
+        (ton === 'warn'
+          ? 'border-warn-500/40 bg-warn-500/10 text-warn-500'
+          : 'border-ok-500/40 bg-ok-500/10 text-ok-500')
+      }
+    >
+      {children}
+    </div>
+  )
+}
+
+function fehlertext(fehler: unknown, t: (key: string, werte?: Record<string, unknown>) => string): string {
+  if (!(fehler instanceof ApiError)) return t('errors.network')
+  const schluessel = oidcFormErrorKey(fehler.code) ?? oidcErrorKey(fehler.code)
+  return schluessel ? t(schluessel) : fehler.message
+}
+
+// --- Karte 1: Anmeldung -------------------------------------------------------------------------
+
+function AnmeldungKarte({ irgendeinerAktiv }: { irgendeinerAktiv: boolean }) {
   const { t } = useTranslation()
   const queryClient = useQueryClient()
-  const { data: eintraege } = useQuery({
-    queryKey: ['admin-oidc-blocks'],
-    queryFn: () =>
-      api.get<{ id: number; issuer: string; display: string | null }[]>(
-        '/api/admin/oidc/blocks',
-      ),
+  const einstellungen = useQuery({
+    queryKey: ['settings'],
+    queryFn: () => api.get<AppSettings>('/api/settings'),
+  })
+  const [adresse, setAdresse] = useState('')
+  const gespeichert = einstellungen.data?.public_url ?? ''
+  useEffect(() => setAdresse(gespeichert), [gespeichert])
+  const [frage, setFrage] = useState<AdressFrage | null>(null)
+  const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null)
+
+  const speichern = useMutation({
+    mutationFn: ({ bestaetigt, ...werte }: Partial<AppSettings> & { bestaetigt?: boolean }) =>
+      api.put<AppSettings>(`/api/settings${bestaetigt ? '?confirm_address=true' : ''}`, werte),
+    onMutate: () => setMeldung(null),
+    onSuccess: (daten) => {
+      queryClient.setQueryData(['settings'], daten)
+      void queryClient.invalidateQueries({ queryKey: ['config'] })
+      setFrage(null)
+      setMeldung({ ok: true, text: t('settings.saved') })
+    },
+    onError: (fehler) => {
+      const gefragt = adressFrageAus(fehler)
+      if (gefragt) {
+        setFrage(gefragt)
+        return
+      }
+      setMeldung({ ok: false, text: fehlertext(fehler, t) })
+    },
   })
 
-  const aufheben = useMutation({
-    mutationFn: (id: number) => api.delete<void>(`/api/admin/oidc/blocks/${id}`),
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['admin-oidc-blocks'] }),
-  })
-
-  if (!eintraege || eintraege.length === 0) return null
-
+  const passwort = einstellungen.data?.password_login ?? true
   return (
-    <Section title={t('adminOidc.blocksTitle')}>
-      <p className="text-sm text-mist-500">{t('adminOidc.blocksIntro')}</p>
-      <div className="flex flex-col gap-2">
-        {eintraege.map((eintrag) => (
-          <div
-            key={eintrag.id}
-            className="flex items-center justify-between gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3"
-          >
-            <span className="min-w-0 text-sm">
-              <span className="font-medium text-mist-200">
-                {eintrag.display ?? t('adminOidc.blockNoName')}
-              </span>
-              <span className="ml-2 break-all text-xs text-mist-600">{eintrag.issuer}</span>
-            </span>
-            <Button
-              variant="ghost"
-              onClick={() => aufheben.mutate(eintrag.id)}
-              loading={aufheben.isPending && aufheben.variables === eintrag.id}
-            >
-              {t('adminOidc.unblock')}
-            </Button>
-          </div>
-        ))}
-      </div>
+    <Section title={t('oidc.admin.signInTitle')}>
+      <Schalter
+        label={t('oidc.admin.password')}
+        hinweis={t('oidc.admin.passwordHint')}
+        checked={passwort}
+        // Ohne aktiven Anbieter käme niemand außer dem Betreiber herein: an.
+        disabled={(passwort && !irgendeinerAktiv) || speichern.isPending}
+        onChange={(wert) => speichern.mutate({ password_login: wert })}
+      />
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(event: FormEvent) => {
+          event.preventDefault()
+          speichern.mutate({ public_url: adresse.trim() })
+        }}
+      >
+        <div className="min-w-60 flex-1">
+          <Field
+            label={t('oidc.admin.address')}
+            value={adresse}
+            onChange={(event) => setAdresse(event.target.value)}
+            placeholder="https://nexview.example.com"
+            hint={t('oidc.admin.addressHint')}
+          />
+        </div>
+        <Button type="submit" loading={speichern.isPending}>
+          {t('common.save')}
+        </Button>
+      </form>
+      {meldung &&
+        (meldung.ok ? <Hinweis ton="ok">{meldung.text}</Hinweis> : <ErrorBanner message={meldung.text} />)}
+      <ConfirmDialog
+        open={frage !== null}
+        title={t('oidc.admin.address')}
+        description={frage ? <AdressFrageText frage={frage} /> : null}
+        confirmLabel={t('common.save')}
+        loading={speichern.isPending}
+        onCancel={() => setFrage(null)}
+        onConfirm={() => speichern.mutate({ public_url: adresse.trim(), bestaetigt: true })}
+      />
     </Section>
   )
 }
 
-/**
- * Die Rückkehr-Adresse zum Kopieren.
- *
- * Eigene Komponente, weil sie an zwei Stellen gebraucht wird – auf der Karte
- * eines eingetragenen Anbieters **und** im Anlege-Formular. Dort ist sie kein
- * Beiwerk: Wer beim Anbieter die Anwendung anlegt, muss sie eintragen, bevor
- * er dort fertig wird. Erst nach dem Speichern in Nexview zu erfahren, wie sie
- * lautet, heißt einmal hin und einmal zurück.
- */
-function RueckkehrFeld({ adresse }: { adresse: string }) {
-  const { t } = useTranslation()
-  const [kopiert, setKopiert] = useState(false)
+// --- Karte 2: Anmeldeanbieter -----------------------------------------------------------------
 
-  return (
-    <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-mist-600">
-        {t('adminOidc.redirectUri')}
-      </p>
-      <div className="mt-1 flex items-center gap-2">
-        <code className="min-w-0 flex-1 break-all rounded-xl border border-ink-700 bg-ink-900 px-3 py-2 text-xs text-mist-300">
-          {adresse}
-        </code>
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={() => {
-            void navigator.clipboard?.writeText(adresse)
-            setKopiert(true)
-          }}
-        >
-          {kopiert ? t('adminOidc.copied') : t('adminOidc.copy')}
-        </Button>
-      </div>
-      <p className="mt-1 text-xs text-mist-600">{t('adminOidc.redirectUriHint')}</p>
-    </div>
-  )
+/** Derselbe Aussteller, wie auch immer am Ende geschrieben (`same_issuer` ohne Platzhalter). */
+function gleicherAussteller(a: string, b: string): boolean {
+  return a.trim().replace(/\/+$/, '') === b.trim().replace(/\/+$/, '')
 }
 
-/** Eine Karte je Anbieter: Schalter, Rückkehr-Adresse, Bearbeiten, Prüfen, Löschen. */
-function AnbieterKarte({
-  eintrag,
-  onAenderung,
-}: {
-  eintrag: OidcAdminEintrag
-  onAenderung: () => void
-}) {
+function AnbieterKarte({ liste }: { liste: OidcAnbieter[] | null }) {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [bearbeiten, setBearbeiten] = useState<OidcAnbieter | 'neu' | null>(null)
+  const [entfernen, setEntfernen] = useState<{ eintrag: OidcAnbieter; folgen: OidcFolgen } | null>(null)
+  const [gezogen, setGezogen] = useState<number | null>(null)
   const [fehler, setFehler] = useState<string | null>(null)
-  const [pruefung, setPruefung] = useState<OidcPruefErgebnis | null>(null)
-  const [bearbeiten, setBearbeiten] = useState(false)
-  const [loeschen, setLoeschen] = useState(false)
-  const [gefaehrdet, setGefaehrdet] = useState<string[]>([])
+  const eintraege = liste ?? []
+  const nurLesen = eintraege.some((eintrag) => !eintrag.editable)
+  const neuLaden = () => queryClient.invalidateQueries({ queryKey: ANBIETER })
 
-  // ⚠️ Abschalten sperrt genauso aus wie Löschen, deshalb antwortet das
-  // Backend darauf mit demselben 409. Ohne diese Behandlung sähe der
-  // Administrator nur ein rotes Banner ohne Ausweg - und ein Anbieter mit
-  // gefährdeten Konten wäre über die Oberfläche gar nicht mehr abschaltbar.
-  const [abschaltenBestaetigen, setAbschaltenBestaetigen] = useState<{
-    werte: Partial<{ auto_create: boolean; enabled: boolean }>
-    namen: string[]
-  } | null>(null)
-
-  const aendern = useMutation({
-    mutationFn: ({
-      werte,
-      bestaetigt = false,
-    }: {
-      werte: Partial<{ auto_create: boolean; enabled: boolean }>
-      bestaetigt?: boolean
-    }) =>
-      api.patch<OidcAdminEintrag>(
-        `/api/admin/oidc/${eintrag.id}?bestaetigt=${bestaetigt}`,
-        werte,
-      ),
-    onMutate: () => setFehler(null),
+  const ordnen = useMutation({
+    mutationFn: (ids: number[]) => api.put('/api/oidc/admin/providers/order', { ids }),
+    onSuccess: () => void neuLaden(),
+    onError: (f) => setFehler(fehlertext(f, t)),
+  })
+  const folgen = useMutation({
+    mutationFn: (eintrag: OidcAnbieter) =>
+      api.get<OidcFolgen>(`/api/oidc/admin/providers/${eintrag.id}/impact`),
+    onSuccess: (antwort, eintrag) => setEntfernen({ eintrag, folgen: antwort }),
+    onError: (f) => setFehler(fehlertext(f, t)),
+  })
+  const weg = useMutation({
+    mutationFn: (eintrag: OidcAnbieter) => api.delete(`/api/oidc/admin/providers/${eintrag.id}`),
     onSuccess: () => {
-      setAbschaltenBestaetigen(null)
-      onAenderung()
-    },
-    onError: (caught, variablen) => {
-      if (
-        caught instanceof ApiError &&
-        caught.code === 'oidc_would_lock_out_others' &&
-        !variablen.bestaetigt
-      ) {
-        const namen = Array.isArray(caught.data?.gefaehrdet)
-          ? (caught.data.gefaehrdet as { username: string }[]).map((k) => k.username)
-          : []
-        setAbschaltenBestaetigen({ werte: variablen.werte, namen })
-        return
-      }
-      setAbschaltenBestaetigen(null)
-      setFehler(caught instanceof ApiError ? caught.message : t('errors.generic'))
+      setEntfernen(null)
+      void neuLaden()
+      void queryClient.invalidateQueries({ queryKey: ['oidc-knoepfe'] })
     },
   })
 
-  const pruefen = useMutation({
-    mutationFn: () =>
-      api.post<OidcPruefErgebnis>(`/api/admin/oidc/${eintrag.id}/pruefen`, {}),
-    onMutate: () => {
-      setFehler(null)
-      setPruefung(null)
-    },
-    onSuccess: setPruefung,
-    onError: (caught) =>
-      setFehler(caught instanceof ApiError ? caught.message : t('errors.generic')),
-  })
-
-  const entfernen = useMutation({
-    mutationFn: (bestaetigt: boolean) =>
-      api.delete<void>(`/api/admin/oidc/${eintrag.id}?bestaetigt=${bestaetigt}`),
-    onSuccess: () => {
-      setLoeschen(false)
-      onAenderung()
-    },
-    onError: (caught) => {
-      // Der 409 mit Namen ist keine Störung, sondern die eigentliche
-      // Auskunft: Der Dialog zeigt die Betroffenen und fragt erneut.
-      if (caught instanceof ApiError && caught.code === 'oidc_would_lock_out_others') {
-        const namen = Array.isArray(caught.data?.gefaehrdet)
-          ? (caught.data.gefaehrdet as { username: string }[]).map((k) => k.username)
-          : []
-        setGefaehrdet(namen)
-        return
-      }
-      setLoeschen(false)
-      setFehler(caught instanceof ApiError ? caught.message : t('errors.generic'))
-    },
-  })
-
-  return (
-    <div className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h3 className="text-base font-semibold text-mist-100">
-            {eintrag.label}
-            <span className="ml-2 text-xs font-normal text-mist-600">{eintrag.slug}</span>
-          </h3>
-          <p className="mt-0.5 break-all text-xs text-mist-500">{eintrag.issuer_url}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setFehler(null)
-              setBearbeiten((offen) => !offen)
-            }}
-          >
-            {bearbeiten ? t('common.close') : t('common.edit')}
-          </Button>
-          <Button variant="ghost" onClick={() => pruefen.mutate()} loading={pruefen.isPending}>
-            {t('adminOidc.probe')}
-          </Button>
-          <Button
-            variant="ghost"
-            onClick={() => {
-              setGefaehrdet([])
-              setLoeschen(true)
-            }}
-          >
-            {t('common.delete')}
-          </Button>
-        </div>
-      </div>
-
-      {pruefung && (
-        <div className="mt-3 flex flex-col gap-2">
-          <p
-            className={
-              'rounded-xl border px-4 py-3 text-sm ' +
-              (pruefung.ok
-                ? 'border-ok-500/40 bg-ok-500/10 text-ok-500'
-                : 'border-accent-600/50 bg-accent-700/15 text-accent-400')
-            }
-          >
-            {pruefung.ok
-              ? t('adminOidc.probeOk')
-              : t([`errors.byCode.${pruefung.code}`, 'adminOidc.probeFailed'])}
-          </p>
-          {/* ⚠️ Der Fallstrick, den ein grünes Prüfergebnis gerade nicht
-              abdeckt: Der Anbieter antwortet tadellos und meldet die Adresse
-              trotzdem als unbestätigt - dann verknüpft Nexview kein
-              bestehendes Konto. Der Hinweis steht deshalb neben dem Ergebnis,
-              das ihn nicht sieht. */}
-          <p className="text-xs text-mist-500">{t('adminOidc.verifiedHint')}</p>
-        </div>
-      )}
-
-      {bearbeiten && (
-        <BearbeitenFormular
-          eintrag={eintrag}
-          onGespeichert={() => {
-            setBearbeiten(false)
-            onAenderung()
-          }}
-          onAbbrechen={() => setBearbeiten(false)}
-        />
-      )}
-
-      <div className="mt-4 flex flex-col gap-3">
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={eintrag.enabled}
-            onChange={(event) => aendern.mutate({ werte: { enabled: event.target.checked } })}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
-          />
-          <span>
-            <span className="font-medium text-mist-200">{t('adminOidc.enabled')}</span>
-            <span className="block text-xs text-mist-500">{t('adminOidc.enabledHint')}</span>
-          </span>
-        </label>
-        <label className="flex items-start gap-3 text-sm">
-          <input
-            type="checkbox"
-            checked={eintrag.auto_create}
-            onChange={(event) => aendern.mutate({ werte: { auto_create: event.target.checked } })}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
-          />
-          <span>
-            <span className="font-medium text-mist-200">{t('adminOidc.autoCreate')}</span>
-            {/* Die Warnung steht am Schalter, nicht in einer Doku: Bei einem
-                Welt-Anbieter heißt „an", dass jeder mit einem Konto dieses
-                Dienstes ein Nexview-Konto bekommt. */}
-            <span className="block text-xs text-warn-500">
-              {t('adminOidc.autoCreateWarning')}
-            </span>
-          </span>
-        </label>
-      </div>
-
-      {eintrag.rueckkehr_adresse && (
-        <div className="mt-4">
-          <RueckkehrFeld adresse={eintrag.rueckkehr_adresse} />
-        </div>
-      )}
-
-      <p className="mt-3 text-xs text-mist-600">
-        {t('adminOidc.linkedCount', { count: eintrag.verknuepfte })}
-      </p>
-
-      {fehler && (
-        <div className="mt-3">
-          <ErrorBanner message={fehler} />
-        </div>
-      )}
-
-      <ConfirmDialog
-        open={loeschen}
-        title={t('adminOidc.deleteTitle', { name: eintrag.label })}
-        description={t('adminOidc.deleteDescription')}
-        warning={
-          gefaehrdet.length > 0
-            ? t('adminOidc.deleteLockout', { namen: gefaehrdet.join(', ') })
-            : undefined
-        }
-        confirmLabel={
-          gefaehrdet.length > 0 ? t('adminOidc.deleteAnyway') : t('common.delete')
-        }
-        onConfirm={() => entfernen.mutate(gefaehrdet.length > 0)}
-        onCancel={() => setLoeschen(false)}
-        loading={entfernen.isPending}
-      />
-
-      <ConfirmDialog
-        open={abschaltenBestaetigen !== null}
-        title={t('adminOidc.disableTitle', { name: eintrag.label })}
-        description={t('adminOidc.disableDescription')}
-        warning={t('adminOidc.deleteLockout', {
-          namen: (abschaltenBestaetigen?.namen ?? []).join(', '),
-        })}
-        confirmLabel={t('adminOidc.deleteAnyway')}
-        onConfirm={() =>
-          abschaltenBestaetigen &&
-          aendern.mutate({ werte: abschaltenBestaetigen.werte, bestaetigt: true })
-        }
-        onCancel={() => setAbschaltenBestaetigen(null)}
-        loading={aendern.isPending}
-      />
-    </div>
-  )
-}
-
-/**
- * Einen eingetragenen Anbieter ändern.
- *
- * Dieselben Felder wie beim Anlegen, mit zwei Unterschieden:
- *
- * * **Das Kürzel fehlt.** Es steckt in der Rückkehr-Adresse, die beim Anbieter
- *   hinterlegt ist; das Backend nimmt es hier gar nicht erst entgegen.
- * * **Das Geheimnis darf leer bleiben.** Die Seite zeigt es nie an (nur
- *   „gesetzt"), also darf ein unangefasstes Feld es nicht löschen – das
- *   Backend behandelt leer als „behalten".
- *
- * ⚠️ **Die Adresse zu ändern ist keine Umbenennung.** Verknüpfungen hängen an
- * der Anbieter-Adresse; eine neue heißt für Nexview „anderer Anbieter", und
- * alles Bestehende passt nicht mehr dazu. Das Backend schreibt es ins
- * Protokoll – gelesen wird das erst, wenn jemand sucht, warum die
- * Verknüpfungen weg sind. Deshalb steht die Warnung hier, solange sie noch
- * etwas ändern kann: sobald das Feld abweicht, vor dem Speichern.
- *
- * Wird nur eingehängt, solange bearbeitet wird - so setzen sich die Felder
- * beim nächsten Öffnen von selbst auf den frischen Stand zurück.
- */
-function BearbeitenFormular({
-  eintrag,
-  onGespeichert,
-  onAbbrechen,
-}: {
-  eintrag: OidcAdminEintrag
-  onGespeichert: () => void
-  onAbbrechen: () => void
-}) {
-  const { t } = useTranslation()
-  const [fehler, setFehler] = useState<string | null>(null)
-  const [werte, setWerte] = useState({
-    label: eintrag.label,
-    issuer_url: eintrag.issuer_url,
-    client_id: eintrag.client_id,
-    client_secret: '',
-  })
-
-  // ⚠️ Adresse und Zugangsdaten sperren genauso aus wie ein Löschen - das
-  // Backend antwortet darauf mit demselben 409. Ohne Bestätigungsweg wäre das
-  // Formular für einen Anbieter mit gefährdeten Konten schlicht tot.
-  const [bestaetigen, setBestaetigen] = useState<string[] | null>(null)
-
-  const speichern = useMutation({
-    mutationFn: (bestaetigt: boolean = false) =>
-      api.patch<OidcAdminEintrag>(
-        `/api/admin/oidc/${eintrag.id}?bestaetigt=${bestaetigt}`,
-        {
-          label: werte.label.trim(),
-          issuer_url: werte.issuer_url.trim(),
-          client_id: werte.client_id.trim(),
-          client_secret: werte.client_secret,
-        },
-      ),
-    onMutate: () => setFehler(null),
-    onSuccess: () => {
-      setBestaetigen(null)
-      onGespeichert()
-    },
-    onError: (caught, bestaetigt) => {
-      if (
-        caught instanceof ApiError &&
-        caught.code === 'oidc_would_lock_out_others' &&
-        !bestaetigt
-      ) {
-        setBestaetigen(
-          Array.isArray(caught.data?.gefaehrdet)
-            ? (caught.data.gefaehrdet as { username: string }[]).map((k) => k.username)
-            : [],
-        )
-        return
-      }
-      setBestaetigen(null)
-      setFehler(caught instanceof ApiError ? caught.message : t('errors.generic'))
-    },
-  })
-
-  // Genauso normalisiert wie im Backend (`_normalisiert`): trimmen und den
-  // Schrägstrich am Ende weg. Sonst warnte ein bloßes „https://sso.example.com/"
-  // vor einem Bruch, den es gar nicht gibt - und eine Warnung, die zu oft
-  // grundlos kommt, liest bald niemand mehr.
-  const adresseGeaendert = werte.issuer_url.trim().replace(/\/+$/, '') !== eintrag.issuer_url
-
-  function absenden(event: FormEvent) {
-    event.preventDefault()
-    speichern.mutate(false)
+  function verschieben(von: number, nach: number) {
+    if (von === nach || nach < 0 || nach >= eintraege.length) return
+    const ids = eintraege.map((eintrag) => eintrag.id)
+    const [genommen] = ids.splice(von, 1)
+    ids.splice(nach, 0, genommen)
+    ordnen.mutate(ids)
   }
 
   return (
-    <form
-      onSubmit={absenden}
-      className="mt-4 flex flex-col gap-4 border-t border-ink-700 pt-4"
-    >
-      <p className="text-xs text-mist-500">{t('adminOidc.editIntro')}</p>
-
-      <Field
-        label={t('adminOidc.label')}
-        value={werte.label}
-        onChange={(e) => setWerte({ ...werte, label: e.target.value })}
-        hint={t('adminOidc.labelHint')}
-        required
-      />
-      <Field
-        label={t('adminOidc.issuer')}
-        value={werte.issuer_url}
-        onChange={(e) => setWerte({ ...werte, issuer_url: e.target.value })}
-        hint={t('adminOidc.issuerHint')}
-        required
-      />
-
-      {adresseGeaendert && (
-        <p className="rounded-xl border border-warn-500/40 bg-warn-500/10 px-4 py-3 text-sm text-warn-500">
-          {eintrag.verknuepfte > 0
-            ? t('adminOidc.editIssuerWarning', { count: eintrag.verknuepfte })
-            : t('adminOidc.editIssuerNote')}
-        </p>
+    <Section title={t('oidc.admin.providersTitle')}>
+      <p className="text-sm text-mist-500">{t('oidc.admin.providersText')}</p>
+      {liste !== null && eintraege.length === 0 && (
+        <p className="text-sm text-mist-400">{t('oidc.admin.empty')}</p>
       )}
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label={t('adminOidc.clientId')}
-          value={werte.client_id}
-          onChange={(e) => setWerte({ ...werte, client_id: e.target.value })}
-          autoComplete="off"
-          required
-        />
-        <Field
-          label={t('adminOidc.clientSecret')}
-          type="password"
-          value={werte.client_secret}
-          onChange={(e) => setWerte({ ...werte, client_secret: e.target.value })}
-          placeholder={eintrag.client_secret_vorschau}
-          hint={t('adminOidc.clientSecretKeep')}
-          autoComplete="off"
-        />
-      </div>
-
+      {eintraege.length > 0 && (
+        <ul className="divide-y divide-ink-700 rounded-xl border border-ink-700" data-testid="anbieter-liste">
+          {eintraege.map((eintrag, index) => (
+            <li
+              key={eintrag.id}
+              className={'flex flex-wrap items-center gap-2 px-3 py-3 text-sm ' + (gezogen === index ? 'opacity-50' : '')}
+              draggable={!nurLesen}
+              onDragStart={() => setGezogen(index)}
+              onDragEnd={() => setGezogen(null)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault()
+                if (gezogen !== null) verschieben(gezogen, index)
+                setGezogen(null)
+              }}
+            >
+              {!nurLesen && eintraege.length > 1 && (
+                <button
+                  type="button"
+                  className="cursor-grab rounded px-1 text-mist-500 hover:text-mist-200"
+                  aria-label={t('anmeldung.order', { name: eintrag.label })}
+                  onKeyDown={(event) => {
+                    if (event.key === 'ArrowUp') verschieben(index, index - 1)
+                    if (event.key === 'ArrowDown') verschieben(index, index + 1)
+                  }}
+                >
+                  <span aria-hidden="true">⠿</span>
+                </button>
+              )}
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-mist-100">{eintrag.label}</span>
+                <span className="block truncate text-xs text-mist-500">{eintrag.issuer}</span>
+              </span>
+              <span className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span
+                  className={
+                    'rounded-full px-2 py-0.5 ' +
+                    (eintrag.enabled ? 'bg-ok-500/10 text-ok-500' : 'border border-ink-700 text-mist-400')
+                  }
+                >
+                  {eintrag.enabled ? t('oidc.admin.active') : t('oidc.admin.inactive')}
+                </span>
+                {eintrag.managed === 'authentik' && (
+                  <span className="rounded-full border border-accent-500/40 px-2 py-0.5 text-accent-400">
+                    {t('oidc.admin.managed')}
+                  </span>
+                )}
+              </span>
+              {eintrag.editable && (
+                <span className="flex gap-1.5">
+                  <Button variant="ghost" onClick={() => setBearbeiten(eintrag)}>
+                    {t('oidc.admin.edit')}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    loading={folgen.isPending && folgen.variables?.id === eintrag.id}
+                    onClick={() => {
+                      setFehler(null)
+                      folgen.mutate(eintrag)
+                    }}
+                  >
+                    {t('oidc.admin.remove')}
+                  </Button>
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+      {!nurLesen && (
+        <div>
+          <Button onClick={() => setBearbeiten('neu')}>{t('oidc.admin.add')}</Button>
+        </div>
+      )}
       {fehler && <ErrorBanner message={fehler} />}
-
-      <div className="flex flex-wrap gap-2">
-        <Button type="submit" loading={speichern.isPending}>
-          {t('common.save')}
-        </Button>
-        <Button type="button" variant="ghost" onClick={onAbbrechen}>
-          {t('common.cancel')}
-        </Button>
-      </div>
-
+      {bearbeiten !== null && (
+        <AnbieterFenster
+          eintrag={bearbeiten === 'neu' ? null : bearbeiten}
+          onSchliessen={() => setBearbeiten(null)}
+          onGespeichert={() => {
+            setBearbeiten(null)
+            void neuLaden()
+            void queryClient.invalidateQueries({ queryKey: ['oidc-knoepfe'] })
+          }}
+        />
+      )}
       <ConfirmDialog
-        open={bestaetigen !== null}
-        title={t('adminOidc.editLockoutTitle')}
-        description={t('adminOidc.editLockoutDescription')}
-        warning={t('adminOidc.deleteLockout', { namen: (bestaetigen ?? []).join(', ') })}
-        confirmLabel={t('adminOidc.deleteAnyway')}
-        onConfirm={() => speichern.mutate(true)}
-        onCancel={() => setBestaetigen(null)}
-        loading={speichern.isPending}
+        open={entfernen !== null}
+        title={t('oidc.admin.remove')}
+        description={
+          entfernen
+            ? t('oidc.admin.removeConfirm', {
+                name: entfernen.eintrag.label,
+                count: entfernen.folgen.count,
+                only: entfernen.folgen.only,
+              })
+            : ''
+        }
+        confirmLabel={t('oidc.admin.remove')}
+        loading={weg.isPending}
+        fehler={weg.isError ? fehlertext(weg.error, t) : undefined}
+        onCancel={() => setEntfernen(null)}
+        onConfirm={() => entfernen && weg.mutate(entfernen.eintrag)}
       />
-    </form>
+    </Section>
   )
 }
 
-/** Das Anlege-Formular - bewusst ohne Voreinstellungs-Zauber in v1 hinaus
-    ueber Google/Microsoft: siehe `VOREINSTELLUNGEN`. */
-const VOREINSTELLUNGEN: { name: string; issuer: string }[] = [
-  { name: 'Google', issuer: 'https://accounts.google.com' },
-  // Der Platzhalter bleibt sichtbar stehen - die Verzeichnis-Kennung kennt
-  // nur der Admin, und eine halbe Adresse faellt beim Pruef-Knopf sofort auf.
-  { name: 'Microsoft', issuer: 'https://login.microsoftonline.com/{tenant}/v2.0' },
-]
+const LEER: OidcAnbieterForm = {
+  label: '',
+  slug: '',
+  issuer: '',
+  client_id: '',
+  client_secret: '',
+  scopes: 'openid profile email',
+  enabled: true,
+  auto_create: false,
+  trusts_second_factor: true,
+}
 
-function NeuerAnbieter({
-  onAngelegt,
-  onFehler,
+type Feldname = 'label' | 'slug' | 'issuer' | 'client_id' | 'client_secret' | 'scopes' | 'id'
+
+/** Das Anbieter-Formular als Fenster, Felder in der Reihenfolge des Bauplans. */
+function AnbieterFenster({
+  eintrag,
+  onSchliessen,
+  onGespeichert,
 }: {
-  onAngelegt: () => void
-  onFehler: (text: string | null) => void
+  eintrag: OidcAnbieter | null
+  onSchliessen: () => void
+  onGespeichert: () => void
 }) {
   const { t } = useTranslation()
-  const [werte, setWerte] = useState(LEER)
-
-  // Nur für die Vorschau der Rückkehr-Adresse. Dieselbe Abfrage wie im Bereich
-  // „Adresse"; React Query bedient beide aus demselben Zwischenspeicher.
-  const { data: settings } = useQuery({
+  const einstellungen = useQuery({
     queryKey: ['settings'],
     queryFn: () => api.get<AppSettings>('/api/settings'),
   })
-  const vorschau = rueckkehrAdresse(settings?.public_url ?? '', werte.slug)
+  const [form, setForm] = useState<OidcAnbieterForm>(
+    eintrag
+      ? {
+          label: eintrag.label,
+          issuer: eintrag.issuer,
+          client_id: eintrag.client_id,
+          client_secret: '',
+          scopes: eintrag.scopes,
+          enabled: eintrag.enabled,
+          auto_create: eintrag.auto_create,
+          trusts_second_factor: eintrag.trusts_second_factor,
+        }
+      : LEER,
+  )
+  // Der Kurzname folgt dem Namen, bis jemand ihn selbst tippt.
+  const [kurznameGetippt, setKurznameGetippt] = useState(false)
+  const [mehr, setMehr] = useState(false)
+  const [laeuft, setLaeuft] = useState(false)
+  const [feldfehler, setFeldfehler] = useState<{ feld: Feldname; text: string } | null>(null)
+  const [ausstellerFrage, setAusstellerFrage] = useState<number | null>(null)
 
-  const anlegen = useMutation({
-    mutationFn: () =>
-      api.post<OidcAdminEintrag>('/api/admin/oidc', {
-        ...werte,
-        slug: werte.slug.trim().toLowerCase(),
-      }),
-    onMutate: () => onFehler(null),
-    onSuccess: () => {
-      setWerte(LEER)
-      onAngelegt()
-    },
-    onError: (caught) =>
-      onFehler(caught instanceof ApiError ? caught.message : t('errors.generic')),
-  })
+  const kurzname = eintrag ? eintrag.slug : kurznameGetippt ? (form.slug ?? '') : slugFromLabel(form.label)
+  const basis = (einstellungen.data?.public_url || window.location.origin + BASIS).replace(/\/+$/, '')
+  const rueckleitung = eintrag ? eintrag.redirect_uri : `${basis}/api/oidc/${kurzname || '…'}/callback`
+  const setzen = (aenderung: Partial<OidcAnbieterForm>) => setForm((jetzt) => ({ ...jetzt, ...aenderung }))
 
-  function absenden(event: FormEvent) {
-    event.preventDefault()
-    anlegen.mutate()
+  function fehlerFuer(fehler: unknown): { feld: Feldname; text: string } {
+    const feld =
+      fehler instanceof ApiError && typeof fehler.data?.field === 'string'
+        ? (fehler.data.field as Feldname)
+        : 'id'
+    return { feld, text: fehlertext(fehler, t) }
   }
 
+  async function speichern() {
+    setLaeuft(true)
+    setFeldfehler(null)
+    try {
+      if (eintrag) await api.put(`/api/oidc/admin/providers/${eintrag.id}`, form)
+      else await api.post('/api/oidc/admin/providers', { ...form, slug: kurzname })
+      onGespeichert()
+    } catch (fehler) {
+      setFeldfehler(fehlerFuer(fehler))
+    } finally {
+      setLaeuft(false)
+    }
+  }
+
+  async function absenden(event: FormEvent) {
+    event.preventDefault()
+    // Ein anderer Aussteller ist ein anderer Anbieter: erst sagen, wie viele
+    // Konten sich neu verknüpfen müssen.
+    if (eintrag && eintrag.links > 0 && !gleicherAussteller(eintrag.issuer, form.issuer)) {
+      try {
+        const antwort = await api.get<OidcFolgen>(
+          `/api/oidc/admin/providers/${eintrag.id}/impact?issuer=${encodeURIComponent(form.issuer.trim())}`,
+        )
+        if (antwort.issuer_change > 0) {
+          setAusstellerFrage(antwort.issuer_change)
+          return
+        }
+      } catch (fehler) {
+        setFeldfehler(fehlerFuer(fehler))
+        return
+      }
+    }
+    await speichern()
+  }
+
+  const fehlerAm = (feld: Feldname) =>
+    feldfehler?.feld === feld ? (
+      <p role="alert" className="-mt-2 text-xs text-bad-500">
+        {feldfehler.text}
+      </p>
+    ) : null
+
   return (
-    <Section title={t('adminOidc.addTitle')}>
-      <p className="text-sm text-mist-500">{t('adminOidc.addIntro')}</p>
-      <form onSubmit={absenden} className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs uppercase tracking-wider text-mist-600">
-              {t('adminOidc.presets')}
-            </span>
-            {VOREINSTELLUNGEN.map((vorlage) => (
-              <Button
-                key={vorlage.name}
-                type="button"
-                variant="ghost"
-                onClick={() =>
-                  setWerte((alt) => ({
-                    ...alt,
-                    label: alt.label || vorlage.name,
-                    slug: alt.slug || vorlage.name.toLowerCase(),
-                    issuer_url: vorlage.issuer,
-                  }))
-                }
-              >
-                {vorlage.name}
-              </Button>
-            ))}
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label={t('adminOidc.label')}
-              value={werte.label}
-              onChange={(e) => setWerte({ ...werte, label: e.target.value })}
-              hint={t('adminOidc.labelHint')}
-              required
-            />
-            <Field
-              label={t('adminOidc.slug')}
-              value={werte.slug}
-              onChange={(e) => setWerte({ ...werte, slug: e.target.value })}
-              hint={t('adminOidc.slugHint')}
-              required
-            />
-          </div>
-
-          {/* ⚠️ **Vor dem Speichern, nicht danach.** Diese Adresse wird beim
-              Anbieter gebraucht, und zwar während man dort die Anwendung
-              anlegt - also bevor es hier überhaupt etwas zu speichern gibt.
-              Grafana und Gitea zeigen sie aus demselben Grund schon im
-              Formular. Sie hängt allein am Kürzel; sobald das steht, steht
-              sie. */}
-          {vorschau ? (
-            <RueckkehrFeld adresse={vorschau} />
-          ) : (
-            <p className="text-xs text-mist-600">{t('adminOidc.redirectUriPending')}</p>
-          )}
-
-          <Field
-            label={t('adminOidc.issuer')}
-            value={werte.issuer_url}
-            onChange={(e) => setWerte({ ...werte, issuer_url: e.target.value })}
-            hint={t('adminOidc.issuerHint')}
-            placeholder="https://sso.example.com"
-            required
-          />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label={t('adminOidc.clientId')}
-              value={werte.client_id}
-              onChange={(e) => setWerte({ ...werte, client_id: e.target.value })}
-              autoComplete="off"
-              required
-            />
-            <Field
-              label={t('adminOidc.clientSecret')}
-              type="password"
-              value={werte.client_secret}
-              onChange={(e) => setWerte({ ...werte, client_secret: e.target.value })}
-              autoComplete="off"
-              required
-            />
-          </div>
-
-          <label className="flex items-start gap-3 text-sm">
-            <input
-              type="checkbox"
-              checked={werte.auto_create}
-              onChange={(e) => setWerte({ ...werte, auto_create: e.target.checked })}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-accent-500"
-            />
-            <span>
-              <span className="font-medium text-mist-200">{t('adminOidc.autoCreate')}</span>
-              <span className="block text-xs text-warn-500">
-                {t('adminOidc.autoCreateWarning')}
-              </span>
-            </span>
-          </label>
-
-          {/* Der zweite Fallstrick neben der Auto-Anlage - und der leisere: Er
-              kostet keine Konten, er verweigert nur die Verknüpfung, und zwar
-              wortlos für den, der sich anmeldet. */}
-          <p className="text-xs text-mist-500">{t('adminOidc.verifiedHint')}</p>
-
-        <div>
-          <Button type="submit" loading={anlegen.isPending}>
-            {t('adminOidc.add')}
+    <Fenster
+      offen
+      titel={eintrag ? `${t('oidc.admin.edit')}: ${eintrag.label}` : t('oidc.admin.add')}
+      onSchliessen={() => !laeuft && onSchliessen()}
+      fuss={
+        <>
+          <Button variant="ghost" onClick={onSchliessen} disabled={laeuft}>
+            {t('common.cancel')}
           </Button>
+          <Button type="submit" form="anbieter-formular" loading={laeuft}>
+            {t('common.save')}
+          </Button>
+        </>
+      }
+    >
+      <form id="anbieter-formular" className="flex flex-col gap-4" onSubmit={(event) => void absenden(event)}>
+        <Field
+          label={t('oidc.admin.label')}
+          value={form.label}
+          onChange={(event) => setzen({ label: event.target.value })}
+          autoFocus
+        />
+        {fehlerAm('label')}
+        {eintrag ? (
+          <p className="text-xs text-mist-500">
+            {t('oidc.admin.slug')}: <code className="font-mono text-mist-300">{eintrag.slug}</code>
+          </p>
+        ) : (
+          <>
+            <Field
+              label={t('oidc.admin.slug')}
+              value={kurzname}
+              onChange={(event) => {
+                setKurznameGetippt(true)
+                setzen({ slug: event.target.value })
+              }}
+              hint={t('oidc.admin.slugHint')}
+            />
+            {fehlerAm('slug')}
+          </>
+        )}
+        <Field
+          label={t('oidc.admin.issuer')}
+          value={form.issuer}
+          onChange={(event) => setzen({ issuer: event.target.value })}
+          placeholder="https://auth.example.com/application/o/nexview/"
+          hint={t('oidc.admin.issuerHint')}
+        />
+        {fehlerAm('issuer')}
+        <Field
+          label={t('oidc.admin.clientId')}
+          value={form.client_id}
+          onChange={(event) => setzen({ client_id: event.target.value })}
+        />
+        {fehlerAm('client_id')}
+        <Field
+          label={t('oidc.admin.secret')}
+          type="password"
+          value={form.client_secret}
+          onChange={(event) => setzen({ client_secret: event.target.value })}
+          placeholder={eintrag?.has_secret ? t('oidc.admin.secretKept') : ''}
+          autoComplete="new-password"
+        />
+        {fehlerAm('client_secret')}
+        <div>
+          <p className="text-sm font-medium text-mist-300">{t('oidc.admin.redirect')}</p>
+          <Kopieren text={rueckleitung} />
+        </div>
+        <Schalter label={t('oidc.admin.enabled')} checked={form.enabled} onChange={(enabled) => setzen({ enabled })} />
+        <Schalter
+          label={t('oidc.admin.autoCreate')}
+          hinweis={t('oidc.admin.autoCreateHint')}
+          checked={form.auto_create}
+          onChange={(auto_create) => setzen({ auto_create })}
+        />
+        <Schalter
+          label={t('oidc.admin.trustsSecondFactor')}
+          hinweis={
+            <>
+              {t('oidc.admin.trustsSecondFactorHint')} {t('anmeldung.noTwoFactor')}
+            </>
+          }
+          checked={form.trusts_second_factor}
+          onChange={(trusts_second_factor) => setzen({ trusts_second_factor })}
+        />
+        <details
+          open={mehr || feldfehler?.feld === 'scopes'}
+          onToggle={(event) => setMehr((event.target as HTMLDetailsElement).open)}
+        >
+          <summary className="cursor-pointer text-xs text-mist-400">{t('anmeldung.more')}</summary>
+          <div className="mt-3">
+            <Field
+              label={t('oidc.admin.scopes')}
+              value={form.scopes}
+              onChange={(event) => setzen({ scopes: event.target.value })}
+            />
+            {fehlerAm('scopes')}
+          </div>
+        </details>
+        {feldfehler?.feld === 'id' && <ErrorBanner message={feldfehler.text} />}
+      </form>
+      <ConfirmDialog
+        open={ausstellerFrage !== null}
+        title={t('oidc.admin.issuer')}
+        description={t('oidc.admin.issuerChangeConfirm', { count: ausstellerFrage ?? 0 })}
+        confirmLabel={t('common.save')}
+        loading={laeuft}
+        onCancel={() => setAusstellerFrage(null)}
+        onConfirm={() => {
+          setAusstellerFrage(null)
+          void speichern()
+        }}
+      />
+    </Fenster>
+  )
+}
+
+// --- Karte 3: authentik in einem Schritt ------------------------------------------------------
+
+function AuthentikKarte({ gekoppelt }: { gekoppelt: boolean }) {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const [werte, setWerte] = useState({ url: '', token: '' })
+  const [schritte, setSchritte] = useState<AuthentikErgebnis | null>(null)
+  // Der Knopf hielt an, bevor er etwas schrieb: ein anderer Aussteller.
+  const [rueckfrage, setRueckfrage] = useState<{ count: number; uebernehmen: boolean } | null>(null)
+  // „Nur übernehmen“ hielt an: Die Adresse ändert eine Rückleitadresse.
+  const [adressFrage, setAdressFrage] = useState<AdressFrage | null>(null)
+  const [fehler, setFehler] = useState<string | null>(null)
+  const adresse = useQuery({
+    queryKey: ['oidc-authentik-adresse'],
+    queryFn: () => api.get<AuthentikAddress>('/api/oidc/authentik/address'),
+  })
+  const daten = adresse.data ?? null
+
+  // Ohne öffentliche Adresse bietet die Karte die des Browsers an, nie eine,
+  // die der Server geraten hat.
+  const vorschlag = authentikProposal(window.location.origin, BASIS)
+  const fehlt = daten !== null && daten.public_url === '' && !gekoppelt
+  const veraltet = daten ? authentikStale(daten) : null
+
+  const auffrischen = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: ['oidc-authentik-adresse'] }),
+      queryClient.invalidateQueries({ queryKey: ANBIETER }),
+      queryClient.invalidateQueries({ queryKey: ['settings'] }),
+      queryClient.invalidateQueries({ queryKey: ['oidc-knoepfe'] }),
+    ])
+  }
+
+  const einrichten = useMutation({
+    mutationFn: ({ bestaetigt, uebernehmen }: { bestaetigt: boolean; uebernehmen: boolean }) =>
+      api.post<AuthentikErgebnis>('/api/oidc/authentik/setup', {
+        url: werte.url.trim(),
+        token: werte.token,
+        confirm_issuer_change: bestaetigt,
+        public_url: uebernehmen ? vorschlag : '',
+      }),
+    onMutate: () => {
+      setSchritte(null)
+      setRueckfrage(null)
+      setFehler(null)
+    },
+    onSuccess: async (antwort, { uebernehmen }) => {
+      // Kein Fehlschlag: Der Knopf wartet auf das Ja des Betreibers, nichts ist
+      // geändert. Das Token bleibt für den zweiten Lauf stehen.
+      const anzahl = authentikIssuerChange(antwort)
+      if (anzahl !== null) {
+        setRueckfrage({ count: anzahl, uebernehmen })
+        return
+      }
+      setSchritte(antwort)
+      setWerte((jetzt) => ({ ...jetzt, token: '' }))
+      await auffrischen()
+    },
+    onError: (f) => setFehler(fehlertext(f, t)),
+  })
+
+  const nurUebernehmen = useMutation({
+    mutationFn: (bestaetigt: boolean) =>
+      api.post<AuthentikAddress>('/api/oidc/authentik/address', {
+        public_url: vorschlag,
+        confirm: bestaetigt,
+      }),
+    onMutate: () => {
+      setAdressFrage(null)
+      setFehler(null)
+    },
+    onSuccess: () => void auffrischen(),
+    onError: (f) => {
+      const gefragt = adressFrageAus(f)
+      if (gefragt) {
+        setAdressFrage(gefragt)
+        return
+      }
+      if (f instanceof ApiError && f.code === 'public_url_invalid') {
+        setFehler(t('oidc.authentik.why.unusable'))
+        return
+      }
+      setFehler(fehlertext(f, t))
+    },
+  })
+
+  const blueprint = useMutation({
+    mutationFn: () => downloadFile('/api/oidc/authentik/blueprint', 'nexview-authentik.yaml'),
+    onError: (f) => setFehler(fehlertext(f, t)),
+  })
+
+  const beschaeftigt = einrichten.isPending || nurUebernehmen.isPending
+  return (
+    <Section title={t('oidc.authentik.title')}>
+      <p className="text-sm text-mist-500">{t('oidc.authentik.text')}</p>
+      {gekoppelt && <p className="text-sm text-warn-500">{t('oidc.authentik.why.coupled')}</p>}
+      {fehlt && daten && (
+        <Hinweis ton="warn" testId="authentik-ohne-adresse">
+          <p>{t('oidc.authentik.noAddress')}</p>
+          <p className="mt-1 break-all font-mono text-sm text-mist-100" data-testid="authentik-vorschlag">
+            {vorschlag}
+          </p>
+          <p className="mt-1 break-all">
+            {t('oidc.admin.redirect')}: <code className="font-mono">{authentikRedirect(vorschlag, daten)}</code>
+          </p>
+          {authentikProxyWarning(vorschlag, daten) && (
+            <p className="mt-1" data-testid="authentik-proxy-warnung">
+              {t('oidc.authentik.proxyWarning', { address: daten.seen })}
+            </p>
+          )}
+        </Hinweis>
+      )}
+      {veraltet && (
+        <Hinweis ton="warn" testId="authentik-veraltet">
+          {t('oidc.authentik.stale', { address: veraltet })}
+        </Hinweis>
+      )}
+      <form
+        className="grid gap-3 sm:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          if (!gekoppelt) einrichten.mutate({ bestaetigt: false, uebernehmen: fehlt })
+        }}
+      >
+        <Field
+          label={t('oidc.authentik.url')}
+          value={werte.url}
+          onChange={(event) => setWerte({ ...werte, url: event.target.value })}
+          placeholder="https://auth.example.com"
+        />
+        <Field
+          label={t('oidc.authentik.token')}
+          type="password"
+          value={werte.token}
+          onChange={(event) => setWerte({ ...werte, token: event.target.value })}
+          autoComplete="off"
+        />
+        <div className="flex flex-wrap items-center gap-3 sm:col-span-2">
+          <Button type="submit" loading={einrichten.isPending} disabled={gekoppelt || beschaeftigt}>
+            {fehlt ? t('oidc.authentik.adopt') : t('oidc.authentik.run')}
+          </Button>
+          {fehlt && (
+            <Button
+              variant="ghost"
+              loading={nurUebernehmen.isPending}
+              disabled={beschaeftigt}
+              onClick={() => nurUebernehmen.mutate(false)}
+            >
+              {t('oidc.authentik.adoptOnly')}
+            </Button>
+          )}
+          <button
+            type="button"
+            disabled={gekoppelt}
+            onClick={() => blueprint.mutate()}
+            className="text-sm text-accent-400 underline-offset-2 hover:underline disabled:text-mist-500 disabled:no-underline"
+          >
+            {t('oidc.authentik.blueprint')}
+          </button>
         </div>
       </form>
+      {einrichten.isPending && (
+        <p className="text-xs text-mist-400" aria-live="polite">
+          {t('oidc.authentik.asking')}
+        </p>
+      )}
+      {schritte && (
+        <ol className="flex flex-col gap-1.5 text-sm" data-testid="authentik-schritte">
+          {schritte.steps.map((schritt) => {
+            const name = authentikStepKey(schritt.key)
+            const warum = schritt.ok ? null : authentikReasonKey(schritt.reason)
+            return (
+              <li key={schritt.key} className="flex gap-2">
+                <span className={schritt.ok ? 'text-ok-500' : 'text-bad-500'} aria-hidden="true">
+                  {schritt.ok ? '✓' : '✗'}
+                </span>
+                <span>
+                  <span className={schritt.ok ? 'text-mist-200' : 'font-medium text-bad-500'}>
+                    {name ? t(name) : schritt.key}
+                  </span>
+                  {warum && (
+                    <span className="block text-xs text-mist-400">
+                      {t(warum, { status: schritt.status ?? 0, count: schritte.count ?? 0 })}
+                    </span>
+                  )}
+                </span>
+              </li>
+            )
+          })}
+        </ol>
+      )}
+      {fehler && <ErrorBanner message={fehler} />}
+      <ConfirmDialog
+        open={rueckfrage !== null}
+        title={t('oidc.authentik.title')}
+        description={t('oidc.admin.issuerChangeConfirm', { count: rueckfrage?.count ?? 0 })}
+        confirmLabel={t('oidc.authentik.run')}
+        loading={einrichten.isPending}
+        onCancel={() => setRueckfrage(null)}
+        onConfirm={() => einrichten.mutate({ bestaetigt: true, uebernehmen: rueckfrage?.uebernehmen ?? false })}
+      />
+      <ConfirmDialog
+        open={adressFrage !== null}
+        title={t('oidc.admin.address')}
+        description={adressFrage ? <AdressFrageText frage={adressFrage} /> : null}
+        confirmLabel={t('common.save')}
+        loading={nurUebernehmen.isPending}
+        onCancel={() => setAdressFrage(null)}
+        onConfirm={() => nurUebernehmen.mutate(true)}
+      />
+    </Section>
+  )
+}
+
+// --- Nexviews eigene: die Sperrliste ----------------------------------------------------------
+
+function Sperrliste() {
+  const { t } = useTranslation()
+  const queryClient = useQueryClient()
+  const sperren = useQuery({
+    queryKey: ['oidc-sperren'],
+    queryFn: () => api.get<OidcSperre[]>('/api/oidc/admin/blocks'),
+  })
+  const aufheben = useMutation({
+    mutationFn: (id: number) => api.delete(`/api/oidc/admin/blocks/${id}`),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['oidc-sperren'] }),
+  })
+  const liste = sperren.data ?? []
+  if (liste.length === 0) return null
+  return (
+    <Section title={t('anmeldung.blocksTitle')}>
+      <p className="text-sm text-mist-500">{t('anmeldung.blocksIntro')}</p>
+      <ul className="divide-y divide-ink-700 rounded-xl border border-ink-700">
+        {liste.map((sperre) => (
+          <li key={sperre.id} className="flex items-center gap-3 px-3 py-2.5 text-sm">
+            <span className="min-w-0 flex-1">
+              <span className="block truncate text-mist-200">{sperre.display || t('anmeldung.blockNoName')}</span>
+              <span className="block truncate text-xs text-mist-500">{sperre.issuer}</span>
+            </span>
+            <Button
+              variant="ghost"
+              loading={aufheben.isPending && aufheben.variables === sperre.id}
+              onClick={() => aufheben.mutate(sperre.id)}
+            >
+              {t('anmeldung.unblock')}
+            </Button>
+          </li>
+        ))}
+      </ul>
     </Section>
   )
 }

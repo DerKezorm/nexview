@@ -188,6 +188,7 @@ EINMAL_SCHRITTE = (
     "_kontingente_dreiwertig_machen",
     "_fassungen_einfuehren",
     "_medienserver_posten_abraeumen",
+    "_oidc_nach_bauplan",
 )
 
 #: Die Stufen-Spalten, die ``_fassungen_einfuehren`` in das Fassungsmodell
@@ -336,6 +337,10 @@ def init_db() -> None:
     # sonst beim ersten Start fuer verwaist und warnte vor einem Datenverlust,
     # den es nicht gibt - eine Zeile spaeter sind sie umgezogen.
     _einmal(_fassungen_einfuehren)
+    # Die Anmelde-Anbieter auf die Tabellen des Bauplans (1.0.1 -> danach).
+    # Vor der Waisenmeldung: Bis zum Umbau steht ``issuer_url`` noch in der
+    # Tabelle, und die hielte sie sonst fuer verwaist.
+    _einmal(_oidc_nach_bauplan)
     # Erst wenn die Stufen-Spalten sicher weg sind: Der Riegel feuert, sobald
     # sie wieder da sind, und haette sonst schon die Wanderung selbst gestoppt.
     _alte_spalten_abraeumen()
@@ -1104,6 +1109,22 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
             f"movie entries without path and not managed={ja(geister)}"
         )
 
+        # Die Anmelde-Anbieter nach dem Bauplan. Erledigt, sobald
+        # ``oidc_providers`` keine Spalte ``issuer_url`` mehr hat - oder es die
+        # Tabelle gar nicht gibt (dann legt ``create_all`` sie gleich neu an,
+        # und es gibt nichts umzutragen).
+        spalten_anbieter = (
+            _existing_columns(verbindung, "oidc_providers")
+            if "oidc_providers" in tabellen
+            else set()
+        )
+        alt = "issuer_url" in spalten_anbieter
+        befund["_oidc_nach_bauplan"] = not alt
+        spuren["_oidc_nach_bauplan"] = (
+            f"table oidc_providers={da('oidc_providers' in tabellen)}, "
+            f"column issuer_url={da(alt)}"
+        )
+
     return befund, spuren
 
 
@@ -1735,6 +1756,18 @@ def _verknuepfungen_in_die_tabelle() -> None:
             "Personal media server links moved into their own table: %d account(s)",
             len(zeilen),
         )
+
+
+def _oidc_nach_bauplan() -> None:
+    """Anmelde-Anbieter und Verknuepfungen von 1.0.1 in die Tabellen des Bauplans.
+
+    Die Arbeit macht ``services.oidc_store.nach_bauplan_wandern``; dort steht,
+    was mit welcher Zeile geschieht. Die Sicherung davor legt ``init_db`` an,
+    weil die neuen Spalten und ``oidc_links`` eine Schema-Aenderung sind.
+    """
+    from .services import oidc_store
+
+    oidc_store.nach_bauplan_wandern(engine)
 
 
 def _existing_columns(connection, table_name: str) -> set[str]:

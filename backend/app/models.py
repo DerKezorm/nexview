@@ -3368,87 +3368,135 @@ class ChildWish(Base):
 
 
 class OidcProvider(Base):
-    """Ein Anmelde-Anbieter nach OpenID Connect - vom Administrator eingerichtet.
+    """Ein Anmelde-Anbieter nach OpenID Connect - die Tabelle des Bauplans.
 
-    Aus Nexview-Sicht ist ein Anbieter drei Werte: Adresse, Client-ID,
-    Geheimnis. Ob dahinter Authentik, Keycloak, Pocket ID oder Google steht,
-    ist dem Code egal - das ist der Sinn der Norm, und deshalb gibt es hier
-    keine Anbieter-Sonderfaelle.
+    Spalte fuer Spalte wie Bauplan 01 ("Anmeldung mit OIDC und authentik"),
+    damit das gemeinsame Modul ``vendor/nexoidc`` sie ueber
+    ``services/oidc_store.SqlStore`` lesen und schreiben kann. Bis 1.0.1 hiess
+    der Aussteller ``issuer_url`` und war eindeutig, das Geheimnis stand ohne
+    eigenen Kontext in ``client_secret``; ``db._oidc_nach_bauplan`` hat die
+    Tabelle einmal umgebaut.
 
     ⚠️ **Ab Werk ist diese Tabelle leer, und dann aendert sich nichts.** Keine
-    Knoepfe auf der Anmeldeseite, keine offenen Endpunkte - eine Installation,
-    deren Administrator nie einen Anbieter einrichtet, weiss von OIDC nichts.
+    Knoepfe auf der Anmeldeseite - eine Installation, deren Administrator nie
+    einen Anbieter einrichtet, weiss von OIDC nichts.
+
+    Jede Spalte traegt neben dem Vorgabewert des Modells einen der Datenbank
+    (``server_default``): Ein Eintrag, den jemand ausserhalb des Modells
+    anlegt, bekommt damit dieselben Werte.
     """
 
     __tablename__ = "oidc_providers"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    #: Das Kuerzel in der Adresse (``/api/auth/oidc/{slug}/...``). Klein
-    #: geschrieben, eindeutig - und **nie** aus der Beschriftung geraten,
-    #: sondern beim Anlegen festgelegt. Die Beschriftung darf sich aendern;
-    #: eine Adresse, die beim Anbieter als Rueckkehr-Adresse hinterlegt ist,
-    #: darf es nicht.
+    #: Teil der Rueckleitadresse ``/api/oidc/<slug>/callback`` - fest, sobald
+    #: angelegt, denn der Anbieter kennt die Adresse.
     slug: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
-    #: Was auf dem Knopf steht: "Anmelden mit <label>".
+    #: Was auf dem Knopf steht: "Mit <label> anmelden".
     label: Mapped[str] = mapped_column(String(80), nullable=False)
-    #: Die Adresse des Anbieters, ohne ``/.well-known/...`` - normalisiert
-    #: ohne Schlussstrich, denn sie wird gegen das ``iss`` der Ausweise
-    #: verglichen, Zeichen fuer Zeichen.
-    issuer_url: Mapped[str] = mapped_column(String(500), unique=True, nullable=False)
+    #: Ohne Leerzeichen und ohne Schraegstrich am Ende gespeichert, verglichen
+    #: mit ``same_issuer``.
+    issuer: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
     client_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    #: Verschluesselt wie jedes andere Geheimnis (``crypto.encrypt``).
-    client_secret: Mapped[str] = mapped_column(Text, nullable=False, default="")
-    #: Duerfen Unbekannte ein Konto bekommen? **Standard aus** - bei einem
-    #: Welt-Anbieter wie Google hiesse "an", dass jeder Mensch mit einem
-    #: Google-Konto ein Nexview-Konto bekommt. Bei einem selbst gehosteten
-    #: Anbieter ist "an" dagegen der Normalfall: Wer dort ein Konto hat, wurde
-    #: vom selben Administrator angelegt.
-    auto_create: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-    #: Deaktivieren nimmt den Knopf von der Anmeldeseite **und** schliesst die
-    #: Endpunkte - getrennt vom Loeschen, damit ein zickender Anbieter
-    #: verschwinden kann, ohne die Einrichtung wegzuwerfen.
-    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    #: Verschluesselt mit eigenem Kontext ``oidc-provider:<id>``
+    #: (``crypto.encrypt_im_kontext``); leer bei einem oeffentlichen Client.
+    #: Geht nie an den Browser zurueck.
+    client_secret_enc: Mapped[str] = mapped_column(
+        Text, nullable=False, default="", server_default=""
+    )
+    scopes: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        default="openid profile email",
+        server_default="openid profile email",
+    )
+    enabled: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("1")
+    )
+    #: "Neue Personen bekommen ein Konto" - **ab Werk aus**.
+    auto_create: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("0")
+    )
+    #: "Der Anbieter prueft den zweiten Faktor selbst" - ab Werk an. Nexview hat
+    #: keinen eigenen zweiten Faktor; die Spalte steht, weil der Bauplan sie fuer
+    #: alle Apps gleich will, und wirkt erst, wenn es einen gibt.
+    trusts_second_factor: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=text("1")
+    )
+    #: ``""`` von Hand, ``"authentik"`` vom authentik-Knopf angelegt.
+    managed: Mapped[str] = mapped_column(String(20), nullable=False, default="", server_default="")
+    #: Reihenfolge der Knoepfe auf der Anmeldeseite.
+    position: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default=text("0")
+    )
+    #: Der Rueckleitpfad, den der Anbieter kennt, wenn es nicht der Standard
+    #: ist: bei den Eintraegen aus 1.0.1 ``/api/auth/oidc/<slug>/callback``.
+    #: Nur die Wanderung setzt ihn, nie das Formular.
+    redirect_path: Mapped[str] = mapped_column(
+        String(300), nullable=False, default="", server_default=""
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: Die Rueckleitadresse, die der authentik-Knopf zuletzt in authentik
+    #: eingetragen hat; leer bei Eintraegen von Hand. Nur der Knopf schreibt sie.
+    registered_redirect: Mapped[str] = mapped_column(
+        String(500), nullable=False, default="", server_default=""
+    )
+
+    links: Mapped[list[OidcLink]] = relationship(
+        back_populates="provider", cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class OidcLink(Base):
-    """Die OIDC-Identitaet eines Benutzers - je Anbieter hoechstens eine.
+    """Eine verknuepfte Identitaet: ein Konto bei einem Anbieter.
 
-    Dasselbe Muster wie ``UserMediaServerAccount``, aus demselben Grund: Die
-    Identitaet eines Menschen bei einem fremden Anbieter gehoert in eine
-    Tabelle, nicht in Spalten am Konto.
+    Bauplan 01: Zugeordnet wird **nur** ueber ``(provider_id, subject)``, nie
+    ueber die Mailadresse. ``email`` steht nur zur Anzeige da. Geht der
+    Anbieter, gehen seine Verknuepfungen mit (``ON DELETE CASCADE``); aendert
+    sich sein Aussteller, verfallen sie (eine Kennung gilt nur zusammen mit
+    ihrem Aussteller).
 
-    ⚠️ **Der Schluessel ist (issuer, subject), nicht die Zeile des Anbieters.**
-    Die Norm sagt: Ein Mensch ist beim Anbieter das Paar aus dessen Adresse
-    (``iss``) und einer Kennung (``sub``) - Name und Mailadresse duerfen sich
-    aendern, das Paar nicht. Deshalb haengt die Verknuepfung an der Adresse
-    statt an ``oidc_providers.id``: Loescht der Administrator den Eintrag und
-    legt ihn neu an, bleiben alle Verknuepfungen gueltig.
+    Bis 1.0.1 hingen die Verknuepfungen am Aussteller statt am Eintrag, in der
+    Tabelle ``user_oidc_links``. ``db._oidc_nach_bauplan`` hat sie einmal
+    hierher uebertragen; die alte Tabelle bleibt eine Fassung lang unangetastet
+    stehen.
     """
 
-    __tablename__ = "user_oidc_links"
+    __tablename__ = "oidc_links"
     __table_args__ = (
-        # Eine fremde Identitaet gehoert genau einem Nexview-Konto - sonst
-        # teilten sich zwei Menschen ein Konto, und jeder saehe die Anfragen
-        # des anderen.
-        UniqueConstraint("issuer", "subject", name="uq_oidc_identitaet"),
-        # Und ein Benutzer hat je Anbieter hoechstens eine Identitaet. Eine
-        # zweite waere keine weitere Anmeldung, sondern eine zweite Person.
-        UniqueConstraint("user_id", "issuer", name="uq_oidc_anbieter"),
+        # Eine Identitaet gehoert genau einem Konto ...
+        UniqueConstraint("provider_id", "subject", name="uq_oidc_links_identitaet"),
+        # ... und ein Konto hat je Anbieter hoechstens eine.
+        UniqueConstraint("provider_id", "account_id", name="uq_oidc_links_konto"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    user_id: Mapped[int] = mapped_column(
+    provider_id: Mapped[int] = mapped_column(
+        ForeignKey("oidc_providers.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    subject: Mapped[str] = mapped_column(String(255), nullable=False)
+    account_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    issuer: Mapped[str] = mapped_column(String(500), nullable=False)
-    subject: Mapped[str] = mapped_column(String(255), nullable=False)
-    #: Nur zur Anzeige im Profil ("verknuepft als ..."): Mailadresse oder Name
-    #: beim Anbieter, je nachdem, was er herausgibt. Verglichen wird damit nie.
-    display: Mapped[str | None] = mapped_column(String(255))
-    linked_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    #: Das tatsaechliche ``iss`` des Tokens bei der Verknuepfung (bei Entra mit
+    #: ``common`` der echte Mandant).
+    issuer: Mapped[str] = mapped_column(String(500), nullable=False, default="", server_default="")
+    #: Nur zur Anzeige, nie zum Zuordnen.
+    email: Mapped[str | None] = mapped_column(String(320))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     user: Mapped[User] = relationship(back_populates="oidc_links")
+    provider: Mapped[OidcProvider] = relationship(back_populates="links", lazy="selectin")
+
+    @property
+    def slug(self) -> str:
+        """Kurzname des Anbieters - fuer die Marken in der Kontenliste."""
+        return self.provider.slug if self.provider is not None else ""
+
+    @property
+    def label(self) -> str:
+        return self.provider.label if self.provider is not None else ""
 
 
 class OidcBlock(Base):

@@ -1839,12 +1839,66 @@
       }
     }
   },
-  "oidc_providers": {
+  "oidc_links": {
     "eindeutig": [
       [
-        "issuer_url"
+        "account_id",
+        "provider_id"
+      ],
+      [
+        "provider_id",
+        "subject"
       ]
     ],
+    "indizes": [
+      "ix_oidc_links_account_id",
+      "ix_oidc_links_provider_id"
+    ],
+    "spalten": {
+      "account_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "email": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "VARCHAR(320)"
+      },
+      "id": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "INTEGER"
+      },
+      "issuer": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "last_used_at": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "provider_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "subject": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(255)"
+      }
+    }
+  },
+  "oidc_providers": {
+    "eindeutig": [],
     "indizes": [
       "ix_oidc_providers_slug"
     ],
@@ -1859,7 +1913,7 @@
         "schluessel": false,
         "typ": "VARCHAR(255)"
       },
-      "client_secret": {
+      "client_secret_enc": {
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "TEXT"
@@ -1879,7 +1933,7 @@
         "schluessel": true,
         "typ": "INTEGER"
       },
-      "issuer_url": {
+      "issuer": {
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(500)"
@@ -1889,10 +1943,40 @@
         "schluessel": false,
         "typ": "VARCHAR(80)"
       },
+      "managed": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(20)"
+      },
+      "position": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "redirect_path": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(300)"
+      },
+      "registered_redirect": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
+      "scopes": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(500)"
+      },
       "slug": {
         "leer_erlaubt": false,
         "schluessel": false,
         "typ": "VARCHAR(40)"
+      },
+      "trusts_second_factor": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
       }
     }
   },
@@ -2650,53 +2734,6 @@
         "leer_erlaubt": true,
         "schluessel": false,
         "typ": "VARCHAR(120)"
-      }
-    }
-  },
-  "user_oidc_links": {
-    "eindeutig": [
-      [
-        "issuer",
-        "subject"
-      ],
-      [
-        "issuer",
-        "user_id"
-      ]
-    ],
-    "indizes": [
-      "ix_user_oidc_links_user_id"
-    ],
-    "spalten": {
-      "display": {
-        "leer_erlaubt": true,
-        "schluessel": false,
-        "typ": "VARCHAR(255)"
-      },
-      "id": {
-        "leer_erlaubt": false,
-        "schluessel": true,
-        "typ": "INTEGER"
-      },
-      "issuer": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "VARCHAR(500)"
-      },
-      "linked_at": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "DATETIME"
-      },
-      "subject": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "VARCHAR(255)"
-      },
-      "user_id": {
-        "leer_erlaubt": false,
-        "schluessel": false,
-        "typ": "INTEGER"
       }
     }
   },

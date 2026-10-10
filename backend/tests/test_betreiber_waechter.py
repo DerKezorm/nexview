@@ -89,6 +89,17 @@ ROUTER_ORDNER = Path(__file__).resolve().parent.parent / "app" / "routers"
 #: "Ich habe nachgesehen, und diese Adresse kann dem Betreiberkonto nichts
 #: antun." Wer das nicht begruenden kann, haengt stattdessen die Wache dran.
 OHNE_SCHUTZ: dict[str, str] = {
+    "POST /api/oidc/{slug}/link": (
+        "Verknuepft das **eigene** Konto: ``{slug}`` ist der Anbieter, nicht ein "
+        "Konto. Das Konto kommt aus der Sitzung, und das eigene Passwort wird "
+        "noch einmal verlangt."
+    ),
+    "DELETE /api/oidc/admin/accounts/{account_id}/links/{provider_id}": (
+        "Traegt dieselbe Entscheidung im Rumpf, weil das Ziel ``account_id`` heisst "
+        "und nicht ``user_id``: Ist das Konto der Betreiber und fragt nicht er "
+        "selbst, antwortet die Route 403 ``betreiber_geschuetzt`` "
+        "(``routers/oidc.betreiber_loest``). Dazu das eigene Passwort."
+    ),
     "POST /api/admin/requests/approve-all/{user_id}": (
         "Gibt fremde Anfragen frei, aendert das Konto nicht. Sie zu sperren "
         "naehme dem Betreiber etwas weg, statt ihn zu schuetzen - und der Haken "
@@ -708,7 +719,7 @@ NUR_EIGENES_KONTO: dict[tuple[str, str], str] = {
     ("auth.py", "update_me"): "Das eigene Profil - Anzeigename, Darstellung, Region.",
     ("mediaserver.py", "login_password"): "last_login_at beim Anmelden, wie auth.login.",
     ("mediaserver.py", "login_poll"): "last_login_at beim Anmelden, wie auth.login.",
-    ("oidc.py", "callback"): "last_login_at beim Anmelden, wie auth.login.",
+    ("oidc.py", "_zurueck"): "last_login_at beim Anmelden ueber einen Anbieter, wie auth.login.",
     ("onboarding.py", "change_pending_email"): (
         "Vor der Anmeldung, gegen einen Einladungs-Token: erreicht nur das Konto, "
         "zu dem der Token gehoert - und das gibt es noch gar nicht."
@@ -889,7 +900,7 @@ def liste(db):
 #: * **schreibt wirklich am Konto**, aber an einem, das die Anfrage sich nicht
 #:   aussuchen kann (``betreiber._setzen``, ``children.recht_entzogen``),
 #: * **schreibt am Konto der eigenen Sitzung** oder an einem Unterprofil davon
-#:   (``children.*``, ``mediaserver_accounts.*``, ``oidc_accounts.link``),
+#:   (``children.*``, ``mediaserver_accounts.*``, ``oidc_store.accept_invite``),
 #: * **schreibt gar nicht am Konto** - der Spaltenname kommt an einer anderen
 #:   Tabelle noch einmal vor, oder ``setattr`` trifft ein anderes Objekt.
 #:   Diese Fehlalarme sind der Preis dafuer, dass ``email``, ``username`` und
@@ -977,10 +988,12 @@ AUSSERHALB: dict[tuple[str, str], str] = {
         "Konto entsteht, geschieht das ueber ``User(...)`` mit einem frisch "
         "eindeutig gemachten Namen - ein neues Konto kann kein fremdes sein."
     ),
-    ("services/oidc_accounts.py", "link"): (
-        "Setzt ``email_verified`` am Konto, das sich gerade verknuepft, und nur "
-        "wenn der Anbieter fuer die Adresse buergt **und** es dieselbe ist, die "
-        "am Konto steht. Strenger als der Media-Server-Weg, und mit Absicht."
+    ("services/oidc_store.py", "accept_invite"): (
+        "Gibt einem Konto, dessen Identitaet gerade beim Anbieter angemeldet ist, "
+        "die Rechte einer Einladung, die es selbst mitgebracht hat - nur dazu, nie "
+        "weniger (Rolle nur hoeher, Freigaben nur an). Wer die Einladung hat und "
+        "sich als dieses Konto anmeldet, ist das Konto; ein zweiter Administrator "
+        "erreicht damit kein fremdes."
     ),
     ("services/tickets.py", "kinderkonten_freischalten"): (
         "Setzt ``can_manage_children`` beim **Eigentuemer des Tickets**, nicht "

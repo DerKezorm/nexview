@@ -21,6 +21,7 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
+import { oidcWording } from '../vendor/nexoidc/oidc'
 import { downloadsNachziehen } from './downloads'
 import { wasNeuNachziehen } from './wasneu'
 
@@ -38,8 +39,33 @@ const STORAGE_KEY = 'nexview.language'
  * vorsichtshalber wieder alles zusammen, und der ganze Gewinn wäre weg.
  */
 const TEXTE: Record<Language, () => Promise<{ default: Record<string, unknown> }>> = {
-  de: () => import('./de.json'),
-  en: () => import('./en.json'),
+  de: async () => {
+    const [eigene, oidc] = await Promise.all([
+      import('./de.json'),
+      import('../vendor/nexoidc/oidc.de.json'),
+    ])
+    return { default: mitAnmeldetexten(eigene.default, oidc.default) }
+  },
+  en: async () => {
+    const [eigene, oidc] = await Promise.all([
+      import('./en.json'),
+      import('../vendor/nexoidc/oidc.en.json'),
+    ])
+    return { default: mitAnmeldetexten(eigene.default, oidc.default) }
+  },
+}
+
+/**
+ * Die Texte der Anmeldung über Anbieter (`oidc.…`) kommen mit dem gemeinsamen
+ * Modul `vendor/nexoidc` – in jeder nex-App dieselben Wörter (Bauplan
+ * „Anmeldung mit OIDC und authentik“, 04). Nexview überschreibt keinen davon;
+ * `nexoidc.wording.test.ts` bewacht das. `{{app}}` setzt i18next selbst ein.
+ */
+function mitAnmeldetexten(
+  eigene: Record<string, unknown>,
+  oidc: Record<string, unknown>,
+): Record<string, unknown> {
+  return { ...eigene, ...oidcWording(oidc as Parameters<typeof oidcWording>[0], { singleAccount: false }) }
 }
 
 function initialLanguage(): Language {
@@ -68,7 +94,8 @@ export async function i18nStarten(sprache: Language = initialLanguage()): Promis
     lng: sprache,
     // Siehe oben: Eine Rückfallsprache, die nicht geladen ist, hilft nicht.
     fallbackLng: false,
-    interpolation: { escapeValue: false },
+    // `{{app}}` in den Texten des Anmeldemoduls.
+    interpolation: { escapeValue: false, defaultVariables: { app: 'Nexview' } },
   })
   document.documentElement.lang = sprache
 }

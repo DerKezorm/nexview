@@ -12,6 +12,34 @@ tag exists for it.
 
 ---
 
+## 1.1.0 – unreleased
+
+### Added
+
+- **Sign-in follows the shared blueprint of the nex apps** ("Anmeldung mit OIDC und
+  authentik"), through the shared module `nexoidc` 1.0.11: several providers at once
+  with one button each, **authentik in one step** with a blueprint to download,
+  **Microsoft Entra ID** with `common` and `organizations`, invitations accepted through
+  the provider (`/api/oidc/<slug>/start?invite=`), password sign-in that can be switched
+  off once a provider is on (never for the operator), provider marks and unlinking in
+  the users list.
+- `NEXVIEW_CLIENT_IP=proxy` now also takes the scheme from `X-Forwarded-Proto` (the
+  rightmost value), so the redirect address behind a TLS proxy is `https`.
+
+### Changed
+
+- **No more linking through a confirmed e-mail address.** A person is recognised only by
+  the identity at the provider. Links made that way before are already stored and keep
+  working; new people link in the profile (with their password) or come with an
+  invitation.
+- The routes moved to `/api/oidc/...`. The redirect address of providers set up with 1.0.1
+  (`/api/auth/oidc/<slug>/callback`) stays valid for those entries.
+- Changing a provider's issuer drops its links; removing a provider removes its links.
+- Saving the public address asks first when a provider knows the old redirect address
+  (`409 public_url_change`).
+
+---
+
 ## 1.0.1 – 07.10.2026
 
 ### Fixed

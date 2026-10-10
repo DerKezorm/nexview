@@ -28,6 +28,7 @@ import { useConfig } from "../../hooks/useConfig";
 import { EinladungsAssistent } from "./EinladungsAssistent";
 import { fassungMitArt, fassungVon, hauptFreigabeLabel, zielWaehlbar } from "../../lib/fassungen";
 import { formatDate } from "../../lib/format";
+import { OidcMarken } from "./OidcMarken";
 
 /**
  * Die drei Grenzen eines Kontos - in der Reihenfolge, in der sie dastehen.
@@ -984,6 +985,10 @@ export function AdminUsersSettings() {
                         })}
                       </span>
                     )}
+
+                    {/* Die Anmelde-Anbieter, mit denen das Konto verknüpft ist,
+                        als Marken - samt „Verknüpfung lösen“ (Bauplan 04). */}
+                    {user.role !== "child" && <OidcMarken user={user} />}
 
                     {/* Genau ein Konto trägt es. Es ist bewusst ruhig
                         gehalten und nicht als Warnung gefärbt: Hier ist nichts

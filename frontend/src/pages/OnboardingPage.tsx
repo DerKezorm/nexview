@@ -14,6 +14,7 @@ import { MediaServerLogo } from '../components/MediaServerLogo'
 import { MediaServerPrompt } from '../components/MediaServerPrompt'
 import { Button, Card, ErrorBanner, Field, Spinner } from '../components/ui'
 import { useConfig } from '../hooks/useConfig'
+import { OidcLoginRow } from '../components/OidcLoginRow'
 
 /** Die Hausordnung, wie die Einladung sie mitbringt - ohne Stand eines Kontos. */
 type HausordnungSchritt = { titel: string; inhalt: string; quittierbar: boolean }
@@ -637,6 +638,11 @@ export function InvitationPage() {
               </Button>
             </div>
           </form>
+          {/* Oder ohne eigenes Passwort, über einen Anmelde-Anbieter: Die
+              Einladung reist als Schlüssel mit (Bauplan 04, Einladungsseite).
+              Nicht bei Einladungen mit Medienserver - die legt nur dieses
+              Formular vollständig an. */}
+          {server.length === 0 && <OidcLoginRow invite={token} />}
         </>
       )}
 

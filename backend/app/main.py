@@ -34,6 +34,7 @@ from .middleware import (
     BasisPfadMiddleware,
     RequestContextMiddleware,
     SicherheitskopfMiddleware,
+    WeitergereichtesSchemaMiddleware,
     unhandled_error,
 )
 from .routers import (
@@ -141,12 +142,26 @@ from .routers import (
 from .routers import (
     watchlist as watchlist_router,
 )
-from .services import beschaffung, channel_outbox, csp, fassungen, logs, sicherung, status_poller, tokens
+from .services import (
+    beschaffung,
+    channel_outbox,
+    csp,
+    fassungen,
+    logs,
+    oidc_store,
+    sicherung,
+    status_poller,
+    tokens,
+)
 from .services.mediaserver import close_http_client as close_mediaserver_client
-from .services.oidc import close_http_client as close_oidc_client
 from .services.tmdb import close_http_client
+from .vendor import nexoidc
 
 settings = get_settings()
+
+# Das gemeinsame Anmeldemodul wissen lassen, in welcher App es laeuft - vor der
+# ersten Anfrage (Bauplan "Anmeldung mit OIDC und authentik").
+oidc_store.configure()
 
 
 # In Tests wuerde die Hintergrundschleife nur stoeren.
@@ -175,6 +190,9 @@ async def lifespan(app: FastAPI):
     from .services.settings_service import verbindungsbericht
 
     verbindungsbericht()
+    # Den TLS-Kontext des Anmeldemoduls einmal lesen, im Arbeitsthread: Sonst
+    # wartet die erste Anmeldung ueber einen Anbieter darauf (README des Moduls).
+    await nexoidc.warm()
 
     stop = asyncio.Event()
     # Zwei Schleifen mit unterschiedlichem Takt. Die Status-Abfrage fragt
@@ -229,7 +247,6 @@ async def lifespan(app: FastAPI):
     await close_http_client()
     await beschaffung.schliessen()
     await close_mediaserver_client()
-    await close_oidc_client()
 
 
 app = FastAPI(
@@ -346,7 +363,7 @@ app.include_router(mediaserver_router.router)
 # Wie die Medienserver-Anmeldung ohne NUR_ERWACHSENE: Die Anmeldewege stehen
 # vor jeder Sitzung; die Endpunkte mit Sitzung verlangen selbst ``AdultUser``.
 app.include_router(oidc_router.router)
-app.include_router(oidc_router.admin_router)
+app.include_router(oidc_router.alter_router)
 app.include_router(storage_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(streaming_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(mediaserver_router.admin_router)
@@ -590,3 +607,7 @@ if _inhaltsregeln is not None:
 # Basis wird gar nichts eingehaengt.
 if settings.url_base:
     app.add_middleware(BasisPfadMiddleware, basis=settings.url_base)
+
+# Das Schema eines vertrauten Proxys (``X-Forwarded-Proto``), ganz aussen -
+# ab Werk wirkt es nicht, siehe ``WeitergereichtesSchemaMiddleware``.
+app.add_middleware(WeitergereichtesSchemaMiddleware)

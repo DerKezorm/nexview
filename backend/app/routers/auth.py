@@ -25,7 +25,16 @@ from ..security import (
     hash_password,
     verify_password,
 )
-from ..services import accounts, anmeldebremse, api_schluessel, avatars, mail, sitzung, tokens
+from ..services import (
+    accounts,
+    anmeldebremse,
+    api_schluessel,
+    avatars,
+    mail,
+    oidc_store,
+    sitzung,
+    tokens,
+)
 from ..services.settings_service import load_settings
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -79,6 +88,20 @@ def login(
     # aus, die gerade auf ihre Bestaetigungsmail wartet und es alle zwei
     # Minuten noch einmal versucht.
     anmeldebremse.geklappt(bremse)
+
+    # Der Betreiber hat die Anmeldung mit Passwort abgeschaltet (Bauplan 01):
+    # Herein kommt man dann ueber einen Anbieter. Der Betreiber selbst immer -
+    # er ist der Rueckweg, falls der Anbieter ausfaellt. Erst nach dem Passwort
+    # gefragt, damit die Antwort nicht verraet, ob es das Konto gibt.
+    if not user.is_betreiber and not oidc_store.passwort_anmeldung(db):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=meldungen.meldung(
+                "password_login_off",
+                "Die Anmeldung mit Passwort ist abgeschaltet. Melde dich über einen "
+                "Anbieter an.",
+            ),
+        )
 
     if not user.is_active:
         raise HTTPException(

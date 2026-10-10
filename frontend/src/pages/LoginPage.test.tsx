@@ -9,7 +9,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 
 // ⚠️ Muss **vor** dem Import der Seite stehen: `vi.mock` wird nach oben
@@ -42,15 +42,20 @@ const holen = vi.mocked(api.get)
 const schicken = vi.mocked(api.post)
 
 /** Der Aufruf, den der AuthProvider beim Erscheinen macht. */
-function einrichtungFertig(oidcAnbieter: object[] = []) {
+function einrichtungFertig(oidcAnbieter: object[] = [], passwordLogin = true) {
   holen.mockImplementation(async (pfad: string) => {
     if (pfad === '/api/setup/status') {
-      return { needs_setup: false, mediaserver_login: false, mediaserver_login_ways: [] }
+      return {
+        needs_setup: false,
+        mediaserver_login: false,
+        mediaserver_login_ways: [],
+        password_login: passwordLogin,
+      }
     }
     if (pfad === '/api/auth/me') {
       return { id: 1, username: 'kim', role: 'user', language: 'de', theme: 'dark' }
     }
-    if (pfad === '/api/auth/oidc') {
+    if (pfad === '/api/oidc/providers') {
       return oidcAnbieter
     }
     throw new Error(`Unerwarteter Aufruf: ${pfad}`)
@@ -165,36 +170,65 @@ describe('Anmelden', () => {
 })
 
 describe('Anmelden über OIDC-Anbieter', () => {
-  it('zeigt je eingerichtetem Anbieter einen Knopf - und ohne keinen', async () => {
+  it('zeigt je eingerichtetem Anbieter einen Knopf unter „oder“ - und ohne keinen', async () => {
     einrichtungFertig([
-      { slug: 'firma', label: 'Firmen-SSO', issuer_url: 'https://sso.beispiel.de' },
+      { slug: 'firma', label: 'Firmen-SSO' },
+      { slug: 'entra', label: 'Microsoft' },
     ])
     rendern(<LoginPage />)
 
-    expect(
-      await screen.findByRole('button', { name: /anmelden mit firmen-sso/i }),
-    ).toBeInTheDocument()
+    const knoepfe = await screen.findAllByRole('button', { name: /^mit .* anmelden$/i })
+    expect(knoepfe.map((knopf) => knopf.textContent)).toEqual([
+      'Mit Firmen-SSO anmelden',
+      'Mit Microsoft anmelden',
+    ])
+    expect(screen.getByText('oder')).toBeInTheDocument()
+    // Das Passwortformular steht darüber, solange die Anmeldung mit Passwort gilt.
+    expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument()
   })
 
   it('bleibt ohne Anbieter die Anmeldeseite von immer', async () => {
     rendern(<LoginPage />)
     await waitFor(() => expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument())
-    expect(screen.queryByText(/oder anmelden über/i)).toBeNull()
+    expect(screen.queryByText('oder')).toBeNull()
+  })
+
+  it('zeigt bei abgeschalteter Passwort-Anmeldung nur die Knöpfe und den Weg für den Betreiber', async () => {
+    einrichtungFertig([{ slug: 'firma', label: 'Firmen-SSO' }], false)
+    rendern(<LoginPage />)
+
+    expect(await screen.findByRole('button', { name: 'Mit Firmen-SSO anmelden' })).toBeInTheDocument()
+    expect(screen.queryByLabelText(/benutzername/i)).toBeNull()
+    expect(screen.queryByText('oder')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Als Betreiber mit Passwort anmelden' }))
+    expect(await screen.findByLabelText(/benutzername/i)).toBeInTheDocument()
   })
 
   it('zeigt die Kennung aus einer gescheiterten Rückkehr - und räumt die Adresse', async () => {
     // Der Rückweg vom Anbieter ist eine Weiterleitung; sein Fehler steht in
     // der Adresse statt in einer API-Antwort.
-    window.history.replaceState(null, '', '/login?oidc_fehler=oidc_not_invited')
+    window.history.replaceState(null, '', '/login?error=oidc_no_account')
     try {
       rendern(<LoginPage />)
 
       expect(
-        await screen.findByText(/für diesen zugang gibt es noch kein konto/i),
+        await screen.findByText(/für dich gibt es hier kein konto/i),
       ).toBeInTheDocument()
       // Einmal gezeigt, aus der Adresse verschwunden: Ein Neuladen soll die
       // alte Meldung nicht noch einmal bringen.
       expect(window.location.search).toBe('')
+    } finally {
+      window.history.replaceState(null, '', '/')
+    }
+  })
+
+  it('zeigt nie einen rohen Code aus der Adresse', async () => {
+    window.history.replaceState(null, '', '/login?error=%3Cb%3Ehallo%3C%2Fb%3E')
+    try {
+      rendern(<LoginPage />)
+      await waitFor(() => expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument())
+      expect(screen.queryByText(/hallo/)).toBeNull()
+      expect(screen.queryByRole('alert')).toBeNull()
     } finally {
       window.history.replaceState(null, '', '/')
     }

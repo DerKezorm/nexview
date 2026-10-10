@@ -3,11 +3,11 @@ import { ConfirmDialog } from '../components/ConfirmDialog'
 import { useSearchParams } from 'react-router-dom'
 import type { FormEvent } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 
 import { ApiError, api, setTokens } from '../api/client'
 import type { TokenPair } from '../api/client'
-import type { OidcAnbieter, User } from '../api/types'
+import type { User } from '../api/types'
 import { useAuth } from '../auth/useAuth'
 import { Avatar } from '../components/Avatar'
 import { Fenster } from '../components/Fenster'
@@ -75,7 +75,6 @@ type Tab =
   | 'notifications'
   | 'streaming'
   | 'mediaserver'
-  | 'oidc'
   | 'watchlist'
   | 'storage'
   | 'children'
@@ -84,14 +83,6 @@ export function ProfilePage() {
   const { t } = useTranslation()
   const { user, updateUser } = useAuth()
   const { data: config } = useConfig()
-  // Ob der Anmeldungs-Reiter erscheint, entscheidet dieselbe Liste, die auch
-  // die Anmeldeseite zeichnet - derselbe Abfrage-Schlüssel, also kein
-  // zweiter Abruf.
-  const { data: oidcListe } = useQuery({
-    queryKey: ['oidc-anbieter'],
-    queryFn: () => api.get<OidcAnbieter[]>('/api/auth/oidc', { auth: false }),
-  })
-  const oidcAnbieter = oidcListe ?? []
   const minPassword = config?.min_password_length ?? 4
   // `?reiter=kinder` öffnet den Reiter direkt - die Glocke springt so aus
   // einem Kinderwunsch an die Stelle, an der er entschieden wird.
@@ -115,11 +106,16 @@ export function ProfilePage() {
     streaming: 'streaming',
     merkliste: 'watchlist',
     speicher: 'storage',
-    // Die Rueckkehr vom OIDC-Anbieter landet hier - der Browser war weg und
-    // soll direkt wieder vor der richtigen Karte stehen.
-    anmeldung: 'oidc',
+    // Die alte Adresse der Anmeldeanbieter: Sie stehen jetzt unter Konto,
+    // Sicherheit (Bauplan „Anmeldung mit OIDC und authentik“, 04).
+    anmeldung: 'account',
   }
-  const gewuenschterReiter = REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? '']
+  // Die Rückkehr vom Anmelde-Anbieter landet hier mit `?linked=` oder
+  // `?error=` - der Browser war weg und soll vor der richtigen Karte stehen.
+  const vomAnbieter = suchparameter.has('linked') || suchparameter.has('error')
+  const gewuenschterReiter = vomAnbieter
+    ? 'account'
+    : REITER_AUS_ADRESSE[suchparameter.get('reiter') ?? '']
   const [tab, setTab] = useState<Tab>(gewuenschterReiter ?? 'account')
 
   // Die alten Adressen ``?reiter=sprache`` und ``?reiter=sicherheit`` zeigten
@@ -129,9 +125,12 @@ export function ProfilePage() {
     sprache: 'sprache',
     sicherheit: 'sicherheit',
     token: 'sicherheit',
+    anmeldung: 'sicherheit',
   }
   const [kontoReiter, setKontoReiter] = useState<KontoReiter>(
-    UNTERREITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? 'profil',
+    vomAnbieter
+      ? 'sicherheit'
+      : (UNTERREITER_AUS_ADRESSE[suchparameter.get('reiter') ?? ''] ?? 'profil'),
   )
   const [meldungsReiter, setMeldungsReiter] = useState<BenachrichtigungenReiter>(
     suchparameter.get('reiter') === 'push' ? 'push' : 'mail',
@@ -369,11 +368,6 @@ export function ProfilePage() {
       label: t('profile.tabMediaServer'),
       symbol: 'medienserver',
     })
-  }
-  // Dieselbe Regel für die genormte Anmeldung: nur, wenn ein Anbieter
-  // eingerichtet ist - oder eine Verknüpfung übrig, die man lösen können muss.
-  if (oidcAnbieter.length > 0 || (user.oidc_links ?? []).length > 0) {
-    tabs.push({ value: 'oidc', label: t('profile.tabOidc'), symbol: 'schluessel' })
   }
   // Nur wenn der Administrator die Merkliste freigeschaltet hat - sonst
   // stünde dort ein Reiter, hinter dem es nichts geben kann.
@@ -695,6 +689,10 @@ export function ProfilePage() {
               {/* API-Token für die HTTP-Schnittstelle. Steht hier und nicht in
                   den Einstellungen, weil ein Token **einem Konto** gehört und
                   dessen Rechte erbt - er ist persönlich, kein Instanz-Zugang. */}
+              {/* Die Anmeldeanbieter: je aktivem Anbieter eine Zeile mit
+                  Verknüpfen oder Lösen (Bauplan 04, „Mein Konto → Sicherheit“). */}
+              {user.role !== 'child' && <OidcLinks />}
+
               {user.role !== 'child' && <ApiSchluessel />}
 
               {/* Der Antrag, das eigene Konto zu löschen - nicht für
@@ -807,7 +805,6 @@ export function ProfilePage() {
 
       {/* Die Verknüpfung gehört zur Anmeldung und damit neben das Passwort. */}
       {tab === 'mediaserver' && <MediaServerLink />}
-      {tab === 'oidc' && <OidcLinks />}
 
       {/* Eine Pille je Quelle. Heute nur Plex - Jellyfin und Emby haben
           keine Merkliste -, später kommen weitere dazu (Trakt etwa).

@@ -60,6 +60,8 @@ from ..services.seerr.texte import Satz, satz
 from ..services.seerr.uebernahme import NIE_DABEI, WAEHLBAR, bereiche_bauen
 from ..services.seerr.vorschau import ROLLEN_BEI_FRISCHER_INSTALLATION, Kontozeile
 from ..services.tmdb import TmdbClient, TmdbError
+from ..vendor.nexoidc import flow
+from . import oidc as oidc_router
 
 logger = logging.getLogger("nexview.seerr")
 
@@ -503,14 +505,23 @@ async def abschliessen(
             ),
         )
     adresse_aussen = eingabe.public_url.strip().rstrip("/")
-    if adresse_aussen and not adresse_aussen.startswith(("http://", "https://")):
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
-            meldungen.meldung(
-                "public_url_invalid",
-                "Die Adresse nach außen muss mit http:// oder https:// beginnen.",
-            ),
-        )
+    if adresse_aussen:
+        # Nie lockerer als das Anmeldemodul (``flow.clean_public_url``): Die
+        # Adresse landet in jeder Rueckleitadresse eines Anmelde-Anbieters.
+        try:
+            adresse_aussen = flow.clean_public_url(adresse_aussen)
+        except ValueError as fehler:
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_ENTITY,
+                meldungen.meldung(
+                    "public_url_invalid",
+                    "Die Adresse nach außen muss mit http:// oder https:// beginnen.",
+                ),
+            ) from fehler
+        # Vor dem ersten Konto gibt es keinen Anbieter, also auch keine
+        # Rueckfrage; die Pruefung steht trotzdem, wie an jedem Weg, der die
+        # oeffentliche Adresse speichert.
+        oidc_router.adresse_bewachen(db, adresse_aussen, request, bestaetigt=False)
 
     # ---- 2. Alles holen, bevor irgendetwas geschrieben wird --------------
     zugang = _zugang(eingabe)

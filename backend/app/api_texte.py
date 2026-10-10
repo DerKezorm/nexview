@@ -1306,119 +1306,153 @@ TEXTE: dict[str, tuple[str, str]] = {
             'account.'
         ),
     ),
-    # --- Anmeldung ueber fremde Anbieter (OIDC) -----------------------------
-    'GET /api/auth/oidc': (
-        'List the sign-in providers',
+    # --- Anmeldung ueber fremde Anbieter (OIDC), nach dem Bauplan -------------
+    'GET /api/oidc/providers': (
+        'List the sign-in buttons',
         (
-            'The OpenID Connect providers the administrator has configured and '
-            'enabled - slug and button label only, nothing sensitive. The login '
-            'page uses this to decide which buttons to show; an empty list means '
-            'the login page looks exactly as it always did.'
+            'The active sign-in providers in their order: slug and the name on the '
+            'button, nothing else. No sign-in needed - the sign-in and invitation '
+            'pages ask before anybody is signed in.'
         ),
     ),
-    'GET /api/auth/oidc/{slug}/login': (
-        'Sign in via an OIDC provider',
+    'GET /api/oidc/{slug}/start': (
+        'Go to a sign-in provider',
         (
-            'Redirects the browser to the configured provider (authorization '
-            'code flow with PKCE). Meant to be navigated to, not called: the '
-            'result is a redirect chain that ends back at the Nexview login '
-            'page. Returns 404 for unknown or disabled providers.'
+            'Redirects the browser to the provider (authorization code flow with PKCE, '
+            'state and nonce in a short-lived attempt cookie). With ?invite=<key> the '
+            'invitation travels along and is accepted on the way back. Meant to be '
+            'navigated to; every failure ends on the sign-in page with ?error=<code>.'
         ),
+    ),
+    'GET /api/oidc/{slug}/callback': (
+        'Return from a sign-in provider',
+        (
+            'The redirect address registered at the provider. Checks the attempt '
+            'cookie and its single-use state, exchanges the code, verifies the ID '
+            'token and either starts a session or links the identity to the account '
+            'that started the linking. Every outcome is a redirect, never a bare API '
+            'answer.'
+        ),
+    ),
+    'GET /api/oidc/callback': (
+        'Return from the provider of the entry oidc',
+        'The same return for the entry with the slug oidc (a coupling).',
     ),
     'GET /api/auth/oidc/{slug}/callback': (
-        'Return leg of the OIDC flow',
+        'Return from a provider set up before 1.1',
         (
-            'The redirect URI registered with the provider. Verifies state, '
-            'exchanges the code, validates the id_token and either starts a '
-            'regular Nexview session (sign-in) or attaches the identity to the '
-            'signed-in account (linking). Every outcome - including every '
-            'error - is a redirect to the Nexview UI with a code in the query, '
-            'never a bare API response.'
+            'The redirect address providers knew until Nexview 1.0.1. Entries carried '
+            'over from then keep it as their own; it leads to the same return.'
         ),
     ),
-    'POST /api/auth/oidc/{slug}/link/start': (
-        'Link an OIDC identity to the own account',
+    'GET /api/oidc/me': (
+        'The sign-in providers of the own account',
+        'Every active provider, and whether the own account is linked to it.',
+    ),
+    'POST /api/oidc/{slug}/link': (
+        'Start linking the own account to a provider',
         (
-            'Returns the provider URL to navigate to and arms the short-lived '
-            'state cookie. A POST with a session rather than a redirect, '
-            'because a browser navigation cannot carry the Authorization '
-            'header.'
+            'Asks for the own password, then returns the provider address to '
+            'navigate to and sets the attempt cookie. Only in a session, not with a '
+            'personal access key.'
         ),
     ),
-    'DELETE /api/auth/oidc/link': (
-        'Unlink an OIDC identity',
+    'DELETE /api/oidc/{slug}/link': (
+        'Unlink the own account from a provider',
         (
-            'Removes the own link to the provider named by ?issuer=... - the '
-            'address rather than the slug, so a link can still be removed '
-            'after the administrator deleted the provider entry. Refused '
-            '(409) if the account would be left without any way back in - no '
-            'password, no verified address, no other linked sign-in.'
+            'Refused (409, oidc_only_account) for the last link of an account '
+            'without a password: it would be locked out.'
         ),
     ),
-    'GET /api/admin/oidc': (
-        'List the configured OIDC providers',
+    'GET /api/oidc/admin/providers': (
+        'List the sign-in providers',
         (
-            'Every configured provider with its settings, the redirect URI to '
-            'register on the provider side and how many accounts are linked. '
-            'The client secret never leaves the database - the list only says '
-            'whether one is set.'
+            'Every entry with its settings, the redirect address to register at the '
+            'provider and how many accounts are linked. The client secret never '
+            'leaves the server - the list only says whether one is set.'
         ),
     ),
-    'POST /api/admin/oidc': (
-        'Add an OIDC provider',
+    'POST /api/oidc/admin/providers': (
+        'Add a sign-in provider',
         (
-            'Issuer URL, client id and secret, button label and the per-provider '
-            'switches (enabled, auto-create). Refused while no public address is '
-            'configured, because the redirect URI is built from it. The slug is '
-            'fixed after creation - it is part of the redirect URI registered '
-            'with the provider.'
+            'Name on the button, short name, issuer, client id and secret, scopes and '
+            'the switches. The issuer is checked by discovery before anything is '
+            'stored. New people get no account unless that switch is on.'
         ),
     ),
-    'PATCH /api/admin/oidc/{provider_id}': (
-        'Change an OIDC provider',
+    'PUT /api/oidc/admin/providers/order': (
+        'Order the sign-in providers',
+        'The order of the buttons on the sign-in page.',
+    ),
+    'PUT /api/oidc/admin/providers/{provider_id}': (
+        'Save a sign-in provider',
         (
-            'Everything but the slug. An empty client secret means "keep the '
-            'stored one". Changing the issuer URL is allowed but means a '
-            'different provider: existing links keep pointing at the old '
-            'issuer.'
+            'Everything but the short name. An empty client secret keeps the stored '
+            'one. Another issuer is another provider: the links of this entry go '
+            '(dropped tells how many).'
         ),
     ),
-    'GET /api/admin/oidc/{provider_id}/folgen': (
-        'Impact of deleting an OIDC provider',
+    'GET /api/oidc/admin/providers/{provider_id}/impact': (
+        'What a change or removal would cost',
         (
-            'How many accounts are linked, and which of them would lose their '
-            'only way in. Always available, so the answer is usually "nobody" - '
-            'a warning that only ever appears in the bad case is never read.'
+            'How many accounts would have to link again with this issuer, how many '
+            'lose their link on removal, and for how many that is the only way in.'
         ),
     ),
-    'DELETE /api/admin/oidc/{provider_id}': (
-        'Delete an OIDC provider',
+    'DELETE /api/oidc/admin/providers/{provider_id}': (
+        'Remove a sign-in provider',
         (
-            'Removes the entry; the links of the users stay, so re-adding the '
-            'same issuer later finds everything in place. Refused (409) with '
-            'the list of endangered accounts if some would lose their only way '
-            'in; can be overridden with bestaetigt=true.'
+            'Removes the entry with its links. Refused (403) when the operator would '
+            'be locked out by somebody else.'
         ),
     ),
-    'GET /api/admin/oidc/blocks': (
-        'List blocked OIDC identities',
+    'GET /api/oidc/admin/blocks': (
+        'List blocked identities',
         (
-            'Identities blocked from re-creating an account - created silently '
-            'when a user is deleted. Without this list a block would be '
-            'forever.'
+            'Identities blocked from signing in again - created when an account is '
+            'deleted. Without this list a block would be forever.'
         ),
     ),
-    'DELETE /api/admin/oidc/blocks/{block_id}': (
-        'Unblock an OIDC identity',
-        'Afterwards that identity may sign in - and, where enabled, be created - again.',
+    'DELETE /api/oidc/admin/blocks/{block_id}': (
+        'Lift a block',
+        'Afterwards that identity may sign in again - and, where enabled, get an account.',
     ),
-    'POST /api/admin/oidc/{provider_id}/pruefen': (
-        'Probe an OIDC provider',
+    'DELETE /api/oidc/admin/accounts/{account_id}/links/{provider_id}': (
+        "Remove an account's link to a provider",
         (
-            'Fetches the provider description fresh, bypassing the cache, and '
-            'reports reachability as a structured result rather than an error. '
-            'Whether client id and secret are right can only be proven by a '
-            'real sign-in.'
+            "With the administrator's own password. The operator's own account can "
+            'be changed by nobody else.'
+        ),
+    ),
+    'POST /api/oidc/authentik/setup': (
+        'Set up authentik in one step',
+        (
+            'Creates or updates signing key, scope mappings, provider and application '
+            'in authentik with the given API token and fills in the entry here. '
+            'Always answers 200 with the steps that ran, a failed one with its '
+            'reason. The token is used for this run only and never stored.'
+        ),
+    ),
+    'GET /api/oidc/authentik/address': (
+        'The public address as the authentik card sees it',
+        (
+            'The public address, the address this request arrived under, what a '
+            'proxy said, the redirect address authentik would get and whether it '
+            'still knows an older one.'
+        ),
+    ),
+    'POST /api/oidc/authentik/address': (
+        'Save the public address',
+        (
+            'Use it only in the authentik card. Answers 409 public_url_change when a '
+            'provider knows the old redirect address, until confirm is true.'
+        ),
+    ),
+    'GET /api/oidc/authentik/blueprint': (
+        'Download the authentik blueprint',
+        (
+            'nexview-authentik.yaml with the same objects the button creates. Needs '
+            'a public address (409 public_url_needed without one).'
         ),
     ),
     # --- Betrieb: Einstellungen, Kanaele, Protokoll, Sicherungen -----------

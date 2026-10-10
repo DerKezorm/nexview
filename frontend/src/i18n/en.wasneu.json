@@ -633,6 +633,35 @@
           "A successful webhook test clears the warning it disproves right away instead of at the next upkeep round.",
           "A large Radarr or Sonarr library gets 90 seconds to answer, and a storage measurement that missed an instance is tried again after five minutes."
         ]
+      },
+      "1.1.0": {
+        "lead": "Signing in through external providers is rebuilt, after the same blueprint as in every nex app: several providers side by side, authentik in one step, Microsoft Entra ID for several tenants, and invitations accepted through the provider.",
+        "sections": [
+          {
+            "title": "authentik in one step",
+            "where": "Settings, System, Sign-in, third card",
+            "body": "Enter the address of authentik and an API token, press Set up: Nexview creates provider and application in authentik itself and fills in everything here. Every step is listed with a tick or a cross, and a failed one says why. If you would rather apply it yourself, download the blueprint instead. The token is not stored."
+          },
+          {
+            "title": "Accept invitations through the provider",
+            "where": "Invitation page, below the form",
+            "body": "Whoever is invited picks “Continue with …” there instead of a password. The invitation travels to the provider and back and brings its rights; it works exactly once."
+          },
+          {
+            "title": "Only the identity at the provider counts",
+            "where": "Profile, Account, Security, Sign-in providers",
+            "body": "An account is no longer linked through a confirmed e-mail address, even when the provider reports one. Whoever signed in that way until now is already linked and notices nothing; everybody else links in the profile, with their password, or comes with an invitation."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Several providers at once, one button each, in an order you drag.",
+          "Microsoft Entra ID with common or organizations: any tenant whose issuer and tid agree signs in.",
+          "Signing in with a password can be switched off once a provider is on; the operator always gets in with the password.",
+          "Another issuer is another provider: the links of that entry go, after a question naming the number of accounts.",
+          "The users list shows an account's providers as marks, and a link can be removed there.",
+          "Providers you set up with 1.0.1 keep their redirect address; the update moves them and their links over by itself."
+        ]
       }
     }
   }

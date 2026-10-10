@@ -135,11 +135,11 @@ export type User = {
     token_abgelehnt?: boolean;
   }[];
   /**
-   * Die OIDC-Anmeldungen am Konto – je Anbieter eine. Zugeordnet wird über
-   * die Anbieter-Adresse, nicht über ein Kürzel: Der Eintrag des
-   * Administrators kann gelöscht sein, während die Verknüpfung noch steht.
+   * Die Verknüpfungen mit Anmelde-Anbietern – je Anbieter höchstens eine
+   * (Bauplan „Anmeldung mit OIDC und authentik“). Geht ein Anbieter, gehen
+   * seine Verknüpfungen mit. `email` steht nur zur Anzeige da.
    */
-  oidc_links: { issuer: string; display: string | null }[];
+  oidc_links: OidcVerknuepfung[];
   /**
    * Kann sich dieses Konto auch mit Passwort anmelden? Wer über den
    * Media-Server angelegt wurde, hat zunächst keines – und darf die
@@ -373,6 +373,12 @@ export type SetupStatus = {
    * Installation beim Klick scheiterte.
    */
   mediaserver_login_ways: LoginWay[];
+  /**
+   * Anmeldung mit Passwort für alle. `false` nur, wenn der Betreiber sie
+   * abgeschaltet hat und ein Anmelde-Anbieter aktiv ist: Dann zeigt die
+   * Anmeldeseite die Knöpfe und unten klein den Weg für den Betreiber.
+   */
+  password_login: boolean;
 };
 
 /** Ein Anmeldeweg auf der Anmeldeseite. */
@@ -383,41 +389,87 @@ export type LoginWay = {
   kind: "pin" | "password";
 };
 
-/**
- * Ein Anmelde-Anbieter nach OpenID Connect, wie ihn Anmeldeseite und Profil
- * sehen: Kürzel für die Adresse, Beschriftung für den Knopf – und die
- * Anbieter-Adresse, über die das Profil seine Verknüpfungen zuordnet.
- */
-export type OidcAnbieter = {
+/** Eine Verknüpfung am Konto: der Eintrag, mit dem es sich anmelden kann. */
+export type OidcVerknuepfung = {
+  provider_id: number;
   slug: string;
   label: string;
-  issuer_url: string;
+  email: string | null;
 };
 
-/** Derselbe Anbieter aus Sicht des Administrators – das Geheimnis bleibt drin. */
-export type OidcAdminEintrag = {
+/** Ein Knopf der Anmelde- und Einladungsseite: ein aktiver Anbieter. */
+export type OidcKnopf = { slug: string; label: string };
+
+/** Ein Anbieter auf der Kontoseite: aktiv, und ist dieses Konto mit ihm verknüpft? */
+export type OidcMeinAnbieter = OidcKnopf & { linked: boolean };
+
+/**
+ * Ein Eintrag der Anbieterliste für den Betreiber (`providers.admin_view` des
+ * Moduls). Das Geheimnis verlässt den Server nie, nur ob eines da ist.
+ */
+export type OidcAnbieter = {
   id: number;
   slug: string;
   label: string;
-  issuer_url: string;
+  issuer: string;
   client_id: string;
-  /** `"••••"` wenn gesetzt – kein Zeichen des Geheimnisses verlässt die Datenbank. */
-  client_secret_vorschau: string;
-  auto_create: boolean;
+  has_secret: boolean;
+  scopes: string;
   enabled: boolean;
-  created_at: string;
-  /** Zum Kopieren; leer, solange die öffentliche Adresse fehlt. */
-  rueckkehr_adresse: string;
-  /** Wie viele Konten über diesen Anbieter verknüpft sind. */
-  verknuepfte: number;
+  auto_create: boolean;
+  trusts_second_factor: boolean;
+  /** `""` von Hand, `"authentik"` vom Knopf, `"nexsuite"` aus einer Kopplung. */
+  managed: string;
+  position: number;
+  /** Die Rückleitadresse, die der Anbieter kennen muss. */
+  redirect_uri: string;
+  registered_redirect_uri: string;
+  redirect_stale: boolean;
+  /** Zahl der verknüpften Konten. */
+  links: number;
+  editable: boolean;
 };
 
-/** Antwort des Prüf-Knopfs – strukturiert, nie als Fehler. */
-export type OidcPruefErgebnis = {
-  ok: boolean;
-  code: string | null;
-  aussteller: string | null;
+/** Was das Anbieter-Formular schickt. */
+export type OidcAnbieterForm = {
+  label: string;
+  slug?: string;
+  issuer: string;
+  client_id: string;
+  client_secret: string;
+  scopes: string;
+  enabled: boolean;
+  auto_create: boolean;
+  trusts_second_factor: boolean;
 };
+
+/** Die Zahlen für die beiden Rückfragen: anderer Aussteller, Entfernen. */
+export type OidcFolgen = {
+  issuer_change: number;
+  count: number;
+  only: number;
+  only_names: string[];
+};
+
+/** Ein Schritt des authentik-Knopfs. */
+export type AuthentikSchritt = {
+  key: string;
+  ok: boolean;
+  reason?: string;
+  status?: number | null;
+};
+
+/** Das Ergebnis eines Laufs des authentik-Knopfs (immer 200). */
+export type AuthentikErgebnis = {
+  ok: boolean;
+  steps: AuthentikSchritt[];
+  count?: number;
+  public_url?: string;
+  address?: import('../vendor/nexoidc/oidc').AuthentikAddress | null;
+};
+
+/** Eine gesperrte Anmeldung (Sperrliste beim Löschen eines Kontos). */
+export type OidcSperre = { id: number; issuer: string; display: string | null };
 
 export type MediaType = "movie" | "tv";
 
@@ -1410,6 +1462,8 @@ export type AppSettings = {
   /** Adresse aus Sicht von Radarr/Sonarr – leer heißt: die öffentliche gilt. */
   webhook_basis_url: string;
   update_check: boolean;
+  /** Anmeldung mit Passwort für alle (aus nur mit aktivem Anmelde-Anbieter). */
+  password_login: boolean;
   /** Regelmäßige Sicherung: 'off' | 'daily' | 'weekly' | 'monthly'. */
   backup_schedule: BackupSchedule;
   /** Wie viele automatische Stände liegen bleiben. Von Hand angelegte zählen nicht mit. */

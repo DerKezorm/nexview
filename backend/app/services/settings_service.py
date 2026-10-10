@@ -161,6 +161,11 @@ DEFAULTS: dict[str, str] = {
     # Einmal taeglich bei GitHub nachsehen, ob es eine neuere Version gibt.
     # Uebertragen wird dabei nichts ausser der Anfrage selbst.
     "update_check": "on",  # "on" | "off"
+    # Anmeldung mit Passwort (Bauplan "Anmeldung mit OIDC und authentik", 01).
+    # Abschalten wirkt nur, solange mindestens ein Anmelde-Anbieter aktiv ist,
+    # und nie fuer den Betreiber - er ist der Rueckweg, falls der Anbieter
+    # ausfaellt.
+    "password_login": "on",  # "on" | "off"
     # Regelmaessige Sicherungen. Bis 0.22 entstand eine automatische Sicherung
     # **nur** bei einer Schemaaenderung - also praktisch nur beim Update.
     # Zwischen zwei Fassungen koennen Monate liegen; wer am Dienstag
@@ -355,6 +360,7 @@ class AppSettings:
     # Web-Push-Kanal liest ihn, ueber seine ``GLOBAL_FIELDS``.
     push_vapid_private: str
     update_check: bool
+    password_login: bool
     backup_schedule: str
     backup_keep: int
     # Die Verbindungen, wie sie in ``media_server_connections`` stehen. Die vier
@@ -949,6 +955,7 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
         webhook_basis_url=values["webhook_basis_url"].strip().rstrip("/"),
         push_vapid_private=values["push_vapid_private"],
         update_check=_flag(values["update_check"], standard=True),
+        password_login=_flag(values["password_login"], standard=True),
         backup_schedule=(
             values["backup_schedule"]
             if values["backup_schedule"] in ("off", "daily", "weekly", "monthly")
@@ -1114,6 +1121,7 @@ def public_settings(db: Session) -> dict[str, object]:
         "public_url": settings.public_url,
         "webhook_basis_url": settings.webhook_basis_url,
         "update_check": settings.update_check,
+        "password_login": settings.password_login,
         "backup_schedule": settings.backup_schedule,
         "backup_keep": settings.backup_keep,
         "mediaserver_provider": settings.mediaserver_provider,

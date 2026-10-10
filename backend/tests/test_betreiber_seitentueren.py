@@ -20,20 +20,13 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from app.db import SessionLocal
-from app.models import OidcLink, Role, User
+from app.models import OidcLink, OidcProvider, Role, User
 from app.security import hash_password, unusable_password
 from app.services import settings_service
 
 from .conftest import ADMIN, auth_headers, create_user
-from .oidc_helfer import ISSUER
 
-NEU = {
-    "slug": "firma",
-    "label": "Firmen-SSO",
-    "issuer_url": ISSUER,
-    "client_id": "nexview",
-    "client_secret": "sehr-geheim",
-}
+ISSUER = "https://sso.example.com"
 
 
 def _mit_adresse() -> None:
@@ -42,93 +35,103 @@ def _mit_adresse() -> None:
         db.commit()
 
 
-def _betreiber_kommt_nur_ueber_oidc() -> None:
+def _anbieter() -> int:
+    """Ein Anmelde-Anbieter, direkt in der Tabelle (die Discovery spielt hier keine Rolle)."""
+    with SessionLocal() as db:
+        eintrag = OidcProvider(slug="firma", label="Firmen-SSO", issuer=ISSUER, client_id="nexview")
+        db.add(eintrag)
+        db.commit()
+        return eintrag.id
+
+
+def _betreiber_kommt_nur_ueber_oidc(anbieter: int) -> None:
     """Dem Betreiber Passwort und Mail nehmen und ihn an den Anbieter haengen.
 
-    So sieht ein Konto aus, das ueber die automatische Anlage entstanden ist:
-    kein brauchbares Passwort, keine bestaetigte Adresse - nur die Verknuepfung.
+    So sieht ein Konto aus, das ueber einen Anbieter entstanden ist: kein
+    brauchbares Passwort - nur die Verknuepfung.
     """
     with SessionLocal() as db:
         chef = db.query(User).filter(User.username == ADMIN["username"]).one()
         chef.password_hash = unusable_password()
         chef.email = None
         chef.email_verified = False
-        chef.oidc_links.append(OidcLink(issuer=ISSUER, subject="chef-1"))
+        db.add(OidcLink(provider_id=anbieter, subject="chef-1", account_id=chef.id, issuer=ISSUER))
         db.commit()
 
 
+def _zweiter_admin(admin_client: TestClient) -> dict[str, str]:
+    create_user(admin_client, "zweiter", "zweites-passwort", role=Role.admin)
+    return auth_headers(admin_client, "zweiter", "zweites-passwort")
+
+
+FORM = {"label": "Firmen-SSO", "issuer": ISSUER, "client_id": "nexview"}
+
+
 class TestAnmeldewegAbschalten:
-    def test_zweiter_admin_kann_den_anbieter_des_betreibers_nicht_loeschen(
+    def test_zweiter_admin_kann_den_anbieter_des_betreibers_nicht_entfernen(
         self, admin_client: TestClient
     ) -> None:
-        """⚠️ Und ``bestaetigt=true`` hilft ihm hier nicht.
+        """Weder entfernen noch abschalten noch einen anderen Aussteller eintragen.
 
-        Fuer jedes andere Konto darf er die Warnung ueberstimmen - er kann den
-        Schaden hinterher beheben, indem er ein Passwort setzt. Beim Betreiber
-        kann er das gerade **nicht**: Dessen Passwort zu setzen ist ihm
-        verboten. Ein ueberstimmbarer Schutz waere hier also gar keiner.
+        Fuer jedes andere Konto fragt die Oberflaeche vorher und der
+        Administrator darf es - er kann den Schaden hinterher beheben, indem er
+        ein Passwort setzt. Beim Betreiber kann er das gerade **nicht**: Dessen
+        Passwort zu setzen ist ihm verboten.
         """
         _mit_adresse()
-        eintrag = admin_client.post("/api/admin/oidc", json=NEU).json()
-        _betreiber_kommt_nur_ueber_oidc()
+        anbieter = _anbieter()
+        _betreiber_kommt_nur_ueber_oidc(anbieter)
+        kopf_b = _zweiter_admin(admin_client)
 
-        create_user(admin_client, "zweiter", "zweites-passwort", role=Role.admin)
-        kopf_b = auth_headers(admin_client, "zweiter", "zweites-passwort")
-
-        ohne = admin_client.delete(f"/api/admin/oidc/{eintrag['id']}", headers=kopf_b)
-        assert ohne.status_code == 403
-        assert ohne.json()["detail"]["code"] == "betreiber_wuerde_ausgesperrt"
-
-        mit = admin_client.delete(
-            f"/api/admin/oidc/{eintrag['id']}?bestaetigt=true", headers=kopf_b
+        weg = admin_client.delete(f"/api/oidc/admin/providers/{anbieter}", headers=kopf_b)
+        aus = admin_client.put(
+            f"/api/oidc/admin/providers/{anbieter}", json={**FORM, "enabled": False}, headers=kopf_b
         )
-        assert mit.status_code == 403, "bestaetigt=true darf hier nichts ausrichten"
-        assert mit.json()["detail"]["code"] == "betreiber_wuerde_ausgesperrt"
+        anders = admin_client.put(
+            f"/api/oidc/admin/providers/{anbieter}",
+            json={**FORM, "issuer": "https://anderes.example.com"},
+            headers=kopf_b,
+        )
+        for antwort in (weg, aus, anders):
+            assert antwort.status_code == 403, antwort.text
+            assert antwort.json()["detail"]["code"] == "betreiber_wuerde_ausgesperrt"
+        with SessionLocal() as db:
+            assert db.get(OidcProvider, anbieter).enabled
+            assert db.query(OidcLink).count() == 1
 
     def test_der_betreiber_selbst_darf_es(self, admin_client: TestClient) -> None:
-        """Der Haken sagt, was **andere** nicht duerfen - nicht, was er nicht darf.
+        """Der Haken sagt, was **andere** nicht duerfen - nicht, was er nicht darf."""
+        _mit_adresse()
+        anbieter = _anbieter()
+        _betreiber_kommt_nur_ueber_oidc(anbieter)
 
-        Wer sich selbst aussperren will, darf das. Es ist sein Server.
+        antwort = admin_client.delete(f"/api/oidc/admin/providers/{anbieter}")
+        assert antwort.status_code == 200, antwort.text
+        assert antwort.json()["count"] == 1 and antwort.json()["only"] == 1
+
+    def test_ein_gewoehnliches_konto_haelt_nichts_auf(self, admin_client: TestClient) -> None:
+        """⚠️ Die Gegenprobe: Der Schutz gilt nur dem Betreiber.
+
+        Fuer alle anderen fragt die Oberflaeche mit der Zahl der Konten, fuer
+        die es der einzige Weg herein ist (``impact``); der Server haelt nichts
+        auf.
         """
         _mit_adresse()
-        eintrag = admin_client.post("/api/admin/oidc", json=NEU).json()
-        _betreiber_kommt_nur_ueber_oidc()
-
-        assert (
-            admin_client.delete(
-                f"/api/admin/oidc/{eintrag['id']}?bestaetigt=true"
-            ).status_code
-            == 204
-        )
-
-    def test_ein_gewoehnliches_konto_bleibt_ueberstimmbar(
-        self, admin_client: TestClient
-    ) -> None:
-        """⚠️ Die Gegenprobe: Der neue Schutz darf die alte Regel nicht ersetzen.
-
-        Fuer alle anderen bleibt es wie bisher - Warnung, und der Administrator
-        kann sie ueberstimmen.
-        """
-        _mit_adresse()
-        eintrag = admin_client.post("/api/admin/oidc", json=NEU).json()
+        anbieter = _anbieter()
         with SessionLocal() as db:
-            gast = User(
-                username="nur-sso", password_hash=unusable_password(), email=None
-            )
-            gast.oidc_links.append(OidcLink(issuer=ISSUER, subject="p-1"))
+            gast = User(username="nur-sso", password_hash=unusable_password(), email=None)
             db.add(gast)
+            db.flush()
+            db.add(OidcLink(provider_id=anbieter, subject="p-1", account_id=gast.id, issuer=ISSUER))
             db.commit()
+        kopf_b = _zweiter_admin(admin_client)
 
-        abgelehnt = admin_client.delete(f"/api/admin/oidc/{eintrag['id']}")
-        assert abgelehnt.status_code == 409
-        assert abgelehnt.json()["detail"]["code"] == "oidc_would_lock_out_others"
-
-        assert (
-            admin_client.delete(
-                f"/api/admin/oidc/{eintrag['id']}?bestaetigt=true"
-            ).status_code
-            == 204
-        )
+        folgen = admin_client.get(f"/api/oidc/admin/providers/{anbieter}/impact", headers=kopf_b)
+        assert folgen.json()["only_names"] == ["nur-sso"]
+        antwort = admin_client.delete(f"/api/oidc/admin/providers/{anbieter}", headers=kopf_b)
+        assert antwort.status_code == 200, antwort.text
+        with SessionLocal() as db:
+            assert db.query(OidcLink).count() == 0
 
 
 class TestSicherungEinspielen:

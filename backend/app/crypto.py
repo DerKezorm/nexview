@@ -62,6 +62,58 @@ def fernet_vergessen() -> None:
     """Den gemerkten Schluessel wegwerfen; der naechste Aufruf leitet neu ab."""
     global _gemerkt
     _gemerkt = None
+    _im_kontext.clear()
+
+
+#: Je Kontext ein eigener Schluessel (``encrypt_im_kontext``), einmal je Lauf.
+_im_kontext: dict[str, Fernet] = {}
+
+
+def _fernet_im_kontext(kontext: str) -> Fernet:
+    """Ein Schluessel nur fuer diesen Kontext, abgeleitet wie ``_fernet``.
+
+    Fuer Geheimnisse, die an einer bestimmten Zeile haengen (das
+    Client-Geheimnis eines Anmelde-Anbieters, Kontext ``oidc-provider:<id>``):
+    Ein Geheimtext, den jemand in die Zeile eines anderen Anbieters kopiert,
+    laesst sich dort nicht entschluesseln.
+    """
+    gemerkt = _im_kontext.get(kontext)
+    if gemerkt is None:
+        secret = get_settings().resolved_secret_key().encode("utf-8")
+        digest = hashlib.sha256(
+            b"nexview-settings:" + secret + b"|context:" + kontext.encode("utf-8")
+        ).digest()
+        gemerkt = _im_kontext[kontext] = Fernet(base64.urlsafe_b64encode(digest))
+    return gemerkt
+
+
+def encrypt_im_kontext(value: str, kontext: str) -> str:
+    """Verschluesseln mit dem Schluessel eines Kontexts; leer bleibt leer."""
+    if not value:
+        return ""
+    return _PREFIX + _fernet_im_kontext(kontext).encrypt(value.encode("utf-8")).decode("utf-8")
+
+
+def decrypt_im_kontext(value: str, kontext: str) -> str:
+    """Gegenstueck zu ``encrypt_im_kontext``; ein unlesbarer Wert wird "" und laermt."""
+    if not value:
+        return ""
+    if not value.startswith(_PREFIX):
+        return value
+    try:
+        return (
+            _fernet_im_kontext(kontext)
+            .decrypt(value[len(_PREFIX) :].encode("utf-8"))
+            .decode("utf-8")
+        )
+    except InvalidToken:
+        logger.warning(
+            "A stored credential (%s) cannot be decrypted with the current secret key. "
+            "Was NEXVIEW_SECRET_KEY changed, or was data/secret.key lost? It has to be "
+            "entered again.",
+            kontext,
+        )
+        return ""
 
 
 def encrypt(value: str) -> str:

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useNavigate } from 'react-router-dom'
@@ -14,44 +14,52 @@ import { OidcLoginRow } from '../components/OidcLoginRow'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import i18n from '../i18n'
+import { oidcErrorKey } from '../vendor/nexoidc/oidc'
 
 /**
- * Die Kennung aus einer gescheiterten OIDC-Rückkehr – einmal gelesen, dann
- * aus der Adresse geräumt.
+ * Die Kennung aus einer gescheiterten Rückkehr vom Anmelde-Anbieter – einmal
+ * gelesen, dann aus der Adresse geräumt.
  *
  * Der Rückweg vom Anbieter ist eine Browser-Weiterleitung; scheitert er,
- * steht die Kennung als `?oidc_fehler=...` in der Adresse statt in einer
- * API-Antwort. Sie wird sofort per `replaceState` entfernt: Ein neu geladenes
- * Fenster soll die alte Meldung nicht noch einmal zeigen, und in kopierten
- * Adressen hat sie nichts verloren.
+ * steht die Kennung als `?error=...` in der Adresse statt in einer
+ * API-Antwort. Gezeigt wird sie nur über `oidcErrorKey` – nie ein roher Code
+ * aus der Adresse. Sie wird sofort per `replaceState` entfernt: Ein neu
+ * geladenes Fenster soll die alte Meldung nicht noch einmal zeigen.
  */
 function oidcFehlerAusAdresse(): string | null {
+  return new URLSearchParams(window.location.search).get('error')
+}
+
+/** Rein lesen, danach räumen: React ruft den `useState`-Anfang im Entwicklungsmodus zweimal auf. */
+function fehlerAusAdresseRaeumen(): void {
   const params = new URLSearchParams(window.location.search)
-  const code = params.get('oidc_fehler')
-  if (!code) return null
-  params.delete('oidc_fehler')
+  if (!params.has('error')) return
+  params.delete('error')
   const rest = params.toString()
   window.history.replaceState(
-    null,
+    window.history.state,
     '',
     window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash,
   )
-  return code
 }
 
 export function LoginPage() {
   const { t } = useTranslation()
-  const { login, loginWithTokens, mediaServerWays } = useAuth()
+  const { login, loginWithTokens, mediaServerWays, passwordLogin } = useAuth()
   const navigate = useNavigate()
 
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(() => {
-    const code = oidcFehlerAusAdresse()
-    if (!code) return null
-    const schluessel = `errors.byCode.${code}`
-    return i18n.exists(schluessel) ? i18n.t(schluessel) : i18n.t('errors.generic')
+    const schluessel = oidcErrorKey(oidcFehlerAusAdresse())
+    return schluessel ? i18n.t(schluessel) : null
   })
+  // Ist die Anmeldung mit Passwort aus, zeigt die Seite nur die Knöpfe der
+  // Anbieter; der Betreiber kommt über den kleinen Weg darunter trotzdem mit
+  // seinem Passwort herein (Bauplan 01, „Passwort-Anmeldung“).
+  const [alsBetreiber, setAlsBetreiber] = useState(false)
+  useEffect(fehlerAusAdresseRaeumen, [])
+  const nurAnbieter = !passwordLogin && !alsBetreiber
   const [busy, setBusy] = useState(false)
   /** Adresse noch nicht bestätigt: dann statt Fehlermeldung den Ausweg zeigen. */
   const [pending, setPending] = useState<{ email: string; message: string } | null>(null)
@@ -119,6 +127,26 @@ export function LoginPage() {
           <h1 className="text-2xl font-bold tracking-tight">{t('login.title')}</h1>
           <p className="mt-1.5 text-sm text-mist-500">{t('app.tagline')}</p>
 
+          {nurAnbieter && (
+            <>
+              {error && (
+                <div className="mt-6">
+                  <ErrorBanner message={error} />
+                </div>
+              )}
+              <OidcLoginRow ohneTrennlinie />
+              <button
+                type="button"
+                onClick={() => setAlsBetreiber(true)}
+                className="mt-6 w-full text-center text-xs text-mist-600 underline-offset-2 hover:text-mist-300 hover:underline"
+              >
+                {t('oidc.login.operator')}
+              </button>
+            </>
+          )}
+
+          {!nurAnbieter && (
+          <>
           <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
             <Field
               label={t('login.usernameLabel')}
@@ -163,10 +191,12 @@ export function LoginPage() {
             }}
           />
 
-          {/* Die eingerichteten OIDC-Anbieter. Nach der Rückkehr baut der
+          {/* Die eingerichteten Anmelde-Anbieter. Nach der Rückkehr baut der
               Start der App die Sitzung aus dem frischen Cookie – hier gibt es
               deshalb keinen onTokens-Weg, nur den Absprung. */}
           <OidcLoginRow />
+          </>
+          )}
         </Card>
         )}
       </div>

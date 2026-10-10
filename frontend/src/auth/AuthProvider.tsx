@@ -28,6 +28,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // feststehen - und dort darf noch niemand die Einstellungen lesen.
   const [mediaServerLogin, setMediaServerLogin] = useState(false)
   const [mediaServerWays, setMediaServerWays] = useState<LoginWay[]>([])
+  const [passwordLogin, setPasswordLogin] = useState(true)
 
   const applyUser = useCallback((loaded: User) => {
     setUser(loaded)
@@ -76,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setNeedsSetup(setup.needs_setup)
         setMediaServerLogin(setup.mediaserver_login)
         setMediaServerWays(setup.mediaserver_login_ways ?? [])
+        setPasswordLogin(setup.password_login ?? true)
 
         if (!setup.needs_setup && (await restoreSession())) {
           const me = await api.get<User>('/api/auth/me')
@@ -148,6 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       needsSetup,
       mediaServerLogin,
       mediaServerWays,
+      passwordLogin,
       login,
       loginWithTokens,
       completeSetup,
@@ -161,6 +164,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       needsSetup,
       mediaServerLogin,
       mediaServerWays,
+      passwordLogin,
       login,
       loginWithTokens,
       completeSetup,

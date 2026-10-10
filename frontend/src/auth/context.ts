@@ -33,6 +33,11 @@ export type AuthState = {
    * raten, und geraten hat sie „Plex".
    */
   mediaServerWays: LoginWay[]
+  /**
+   * Gilt die Anmeldung mit Passwort für alle? `false`, wenn der Betreiber sie
+   * abgeschaltet hat und ein Anmelde-Anbieter aktiv ist.
+   */
+  passwordLogin: boolean
   login: (username: string, password: string) => Promise<void>
   /**
    * Aus fertigen Token eine Sitzung machen.

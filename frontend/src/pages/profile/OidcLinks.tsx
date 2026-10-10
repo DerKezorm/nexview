@@ -1,233 +1,209 @@
 /**
- * Das eigene Konto mit den OIDC-Anbietern verknüpfen.
+ * Mein Konto → Sicherheit → Anmeldeanbieter: je aktivem Anbieter eine Zeile
+ * mit Zustand und „Verknüpfen“ oder „Lösen“ (Bauplan „Anmeldung mit OIDC und
+ * authentik“, 04).
  *
- * Das Geschwister von `MediaServerLink`, mit einem grundsätzlichen
- * Unterschied im Ablauf: Verknüpfen ist hier eine **Reise des ganzen
- * Browsers** – erst holt die Seite die Absprungadresse (mit Sitzung, denn
- * eine Navigation trägt keinen Authorization-Kopf), dann fährt der Browser
- * zum Anbieter und kommt auf diese Seite zurück. Das Ergebnis steht dann als
- * `?oidc=verknuepft` bzw. `?oidc_fehler=...` in der Adresse, nicht in einer
- * API-Antwort – gelesen, angezeigt, aus der Adresse geräumt.
+ * Verknüpfen ist eine **Reise des ganzen Browsers**: Die Seite fragt erst das
+ * eigene Passwort noch einmal (ein Verknüpfen gibt das Konto an den, der beim
+ * Anbieter angemeldet ist), holt mit der Sitzung die Absprungadresse und
+ * schickt den Browser dorthin. Zurück kommt er hierher mit `?linked=<slug>`
+ * oder `?error=<code>` – gelesen, angezeigt, aus der Adresse geräumt.
  *
- * Eine Zeile je Anbieter. Eine Verknüpfung zu einem Anbieter, den der
- * Administrator gelöscht hat, steht trotzdem da – sonst gäbe es keinen Weg,
- * sie loszuwerden. Getrennt wird deshalb über die Anbieter-Adresse, nie über
- * das Kürzel.
+ * Ein Konto ohne Passwort kann seine letzte Verknüpfung nicht lösen; der Knopf
+ * fehlt dann, und der Satz `oidc.account.only` sagt warum.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { ApiError, api } from '../../api/client'
-import type { OidcAnbieter, User } from '../../api/types'
+import type { OidcMeinAnbieter, User } from '../../api/types'
 import { useAuth } from '../../auth/useAuth'
-import { Button, Card, ErrorBanner } from '../../components/ui'
+import { Fenster } from '../../components/Fenster'
+import { Button, ErrorBanner, Field, Section } from '../../components/ui'
 import i18n from '../../i18n'
+import { oidcErrorKey } from '../../vendor/nexoidc/oidc'
 
-/** Ergebnis der Rückkehr aus der Adresse lesen – und sie sofort säubern. */
-function rueckkehrAusAdresse(): { ok: boolean; text: string } | null {
+/**
+ * Ergebnis der Rückkehr aus der Adresse lesen – ohne sie anzufassen.
+ *
+ * ⚠️ Rein: React ruft einen `useState`-Anfang im Entwicklungsmodus zweimal auf
+ * und behält einen der beiden. Räumte schon der erste die Adresse, sähe der
+ * zweite nichts mehr. Geräumt wird deshalb danach (`adresseRaeumen`).
+ */
+function rueckkehrAusAdresse(): { ok: boolean; slug?: string; text?: string } | null {
   const params = new URLSearchParams(window.location.search)
-  const gut = params.get('oidc')
-  const code = params.get('oidc_fehler')
-  if (!gut && !code) return null
-  params.delete('oidc')
-  params.delete('oidc_fehler')
+  const verknuepft = params.get('linked')
+  const code = params.get('error')
+  if (!verknuepft && !code) return null
+  if (code) {
+    const schluessel = oidcErrorKey(code)
+    return { ok: false, text: schluessel ? i18n.t(schluessel) : i18n.t('errors.generic') }
+  }
+  return { ok: true, slug: verknuepft ?? '' }
+}
+
+/** `?linked=` und `?error=` aus der Adresse nehmen: Ein Neuladen zeigt die Meldung nicht noch einmal. */
+function adresseRaeumen(): void {
+  const params = new URLSearchParams(window.location.search)
+  if (!params.has('linked') && !params.has('error')) return
+  params.delete('linked')
+  params.delete('error')
   const rest = params.toString()
   window.history.replaceState(
-    null,
+    window.history.state,
     '',
     window.location.pathname + (rest ? `?${rest}` : '') + window.location.hash,
   )
-  if (code) {
-    const schluessel = `errors.byCode.${code}`
-    return {
-      ok: false,
-      text: i18n.exists(schluessel) ? i18n.t(schluessel) : i18n.t('errors.generic'),
-    }
-  }
-  return { ok: true, text: i18n.t('oidc.linked') }
 }
 
 export function OidcLinks() {
   const { t } = useTranslation()
+  const queryClient = useQueryClient()
   const { user, updateUser } = useAuth()
-  const [ergebnis, setErgebnis] = useState<{ ok: boolean; text: string } | null>(
-    rueckkehrAusAdresse,
-  )
-  const [fehler, setFehler] = useState<string | null>(null)
-  /** Für welchen Anbieter läuft gerade der Absprung? */
-  const [aktiv, setAktiv] = useState<string | null>(null)
+  const [rueckkehr] = useState(rueckkehrAusAdresse)
+  useEffect(adresseRaeumen, [])
+  const [meldung, setMeldung] = useState<{ ok: boolean; text: string } | null>(null)
+  const [passwortFuer, setPasswortFuer] = useState<OidcMeinAnbieter | null>(null)
+  const [passwort, setPasswort] = useState('')
 
-  const { data: anbieter } = useQuery({
-    queryKey: ['oidc-anbieter'],
-    queryFn: () => api.get<OidcAnbieter[]>('/api/auth/oidc', { auth: false }),
+  const anbieter = useQuery({
+    queryKey: ['oidc-meine'],
+    queryFn: () => api.get<OidcMeinAnbieter[]>('/api/oidc/me'),
   })
+  const liste = anbieter.data ?? []
 
   const verknuepfen = useMutation({
-    mutationFn: (slug: string) =>
-      api.post<{ url: string }>(`/api/auth/oidc/${encodeURIComponent(slug)}/link/start`, {}),
-    onMutate: (slug) => {
-      setErgebnis(null)
-      setFehler(null)
-      setAktiv(slug)
-    },
+    mutationFn: ({ slug, password }: { slug: string; password: string }) =>
+      api.post<{ url: string }>(`/api/oidc/${encodeURIComponent(slug)}/link`, { password }),
     onSuccess: ({ url }) => {
-      // Ab hier übernimmt der Browser; zurück geht es auf diese Seite.
       window.location.href = url
     },
-    onError: (caught) => {
-      setAktiv(null)
-      setFehler(caught instanceof ApiError ? caught.message : t('errors.generic'))
-    },
   })
 
-  const trennen = useMutation({
-    mutationFn: (issuer: string) =>
-      api.delete<User>(`/api/auth/oidc/link?issuer=${encodeURIComponent(issuer)}`),
-    onMutate: () => {
-      setErgebnis(null)
-      setFehler(null)
+  const loesen = useMutation({
+    mutationFn: (eintrag: OidcMeinAnbieter) =>
+      api.delete(`/api/oidc/${encodeURIComponent(eintrag.slug)}/link`),
+    onMutate: () => setMeldung(null),
+    onSuccess: async (_antwort, eintrag) => {
+      setMeldung({ ok: true, text: t('anmeldung.unlinkedDone', { name: eintrag.label }) })
+      await queryClient.invalidateQueries({ queryKey: ['oidc-meine'] })
+      updateUser(await api.get<User>('/api/auth/me'))
     },
-    onSuccess: (aktualisiert) => {
-      updateUser(aktualisiert)
-      setErgebnis({ ok: true, text: t('oidc.unlinked') })
-    },
-    onError: (caught) =>
-      setFehler(caught instanceof ApiError ? caught.message : t('errors.generic')),
+    onError: (fehler) =>
+      setMeldung({ ok: false, text: fehler instanceof ApiError ? fehler.message : t('errors.network') }),
   })
 
-  const verknuepft = user?.oidc_links ?? []
-  const eingerichtet = anbieter ?? []
-  // Wie beim Medienserver: Auch eine Verknüpfung ohne Anbieter-Eintrag gehört
-  // in die Liste - sonst gäbe es keinen Weg, sie wieder loszuwerden.
-  const fremde = verknuepft.filter(
-    (z) => !eingerichtet.some((a) => a.issuer_url === z.issuer),
-  )
+  if (!user || (liste.length === 0 && !rueckkehr)) return null
 
-  if (eingerichtet.length === 0 && verknuepft.length === 0) return null
-
-  // Die letzte Verknüpfung zu lösen sperrt aus, wer weder Passwort noch einen
-  // Medienserver-Weg hat. Der Server weist das ohnehin ab; der Hinweis hier
-  // erspart den vergeblichen Klick.
-  const sperrt =
-    verknuepft.length <= 1 &&
-    !user?.has_password &&
-    (user?.mediaserver_accounts ?? []).length === 0
+  const hatPasswort = user.has_password !== false
+  const verknuepfte = liste.filter((eintrag) => eintrag.linked)
+  const zurueckVon = rueckkehr?.ok ? liste.find((eintrag) => eintrag.slug === rueckkehr.slug) : undefined
+  const erstMeldung =
+    meldung ??
+    (rueckkehr
+      ? rueckkehr.ok
+        ? { ok: true, text: t('anmeldung.linkedDone', { name: zurueckVon?.label ?? rueckkehr.slug }) }
+        : { ok: false, text: rueckkehr.text ?? t('errors.generic') }
+      : null)
 
   return (
-    <Card>
-      <h2 className="text-lg font-semibold">{t('oidc.profileTitle')}</h2>
-      <p className="mt-1.5 text-sm text-mist-500">{t('oidc.profileIntro')}</p>
-
-      <div className="mt-4 flex flex-col gap-3">
-        {eingerichtet.map((eintrag) => {
-          const zeile = verknuepft.find((z) => z.issuer === eintrag.issuer_url)
+    <Section title={t('oidc.account.title')} breit>
+      <p className="-mt-2 text-sm leading-relaxed text-mist-500">{t('oidc.account.text')}</p>
+      {erstMeldung &&
+        (erstMeldung.ok ? (
+          <p className="rounded-xl border border-ok-500/40 bg-ok-500/10 px-4 py-3 text-sm text-ok-500">
+            {erstMeldung.text}
+          </p>
+        ) : (
+          <ErrorBanner message={erstMeldung.text} />
+        ))}
+      <ul className="divide-y divide-ink-700 rounded-xl border border-ink-700" data-testid="meine-anbieter">
+        {liste.map((eintrag) => {
+          // Ohne Passwort hält die letzte Verknüpfung das Konto: Sie bleibt.
+          const letzte = !hatPasswort && eintrag.linked && verknuepfte.length === 1
           return (
-            <AnbieterZeile
-              key={eintrag.issuer_url}
-              name={eintrag.label}
-              display={zeile?.display ?? null}
-              verknuepft={!!zeile}
-              sperrt={!!zeile && sperrt}
-              laeuft={
-                (verknuepfen.isPending && aktiv === eintrag.slug) ||
-                (trennen.isPending && trennen.variables === eintrag.issuer_url)
-              }
-              onVerknuepfen={() => verknuepfen.mutate(eintrag.slug)}
-              onTrennen={() => trennen.mutate(eintrag.issuer_url)}
-            />
+            <li key={eintrag.slug} className="flex flex-wrap items-center gap-3 px-3 py-3 text-sm">
+              <span className="min-w-0 flex-1">
+                <span className="block font-medium text-mist-100">{eintrag.label}</span>
+                <span className={'block text-xs ' + (eintrag.linked ? 'text-ok-500' : 'text-mist-500')}>
+                  {eintrag.linked ? t('oidc.account.linked') : t('oidc.account.notLinked')}
+                </span>
+                {letzte && (
+                  <span className="mt-1 block text-xs text-mist-500">
+                    {t('oidc.account.only', { name: eintrag.label })}
+                  </span>
+                )}
+              </span>
+              {eintrag.linked ? (
+                !letzte && (
+                  <Button
+                    variant="ghost"
+                    loading={loesen.isPending && loesen.variables?.slug === eintrag.slug}
+                    onClick={() => loesen.mutate(eintrag)}
+                  >
+                    {t('oidc.account.unlink')}
+                  </Button>
+                )
+              ) : (
+                hatPasswort && (
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      verknuepfen.reset()
+                      setPasswort('')
+                      setPasswortFuer(eintrag)
+                    }}
+                  >
+                    {t('oidc.account.link')}
+                  </Button>
+                )
+              )}
+            </li>
           )
         })}
-
-        {fremde.map((zeile) => (
-          <AnbieterZeile
-            key={zeile.issuer}
-            // Der Eintrag des Administrators ist weg - dann ist die Adresse
-            // der ehrlichste Name, den es noch gibt.
-            name={zeile.issuer.replace(/^https?:\/\//, '')}
-            display={zeile.display}
-            verknuepft
-            weg
-            sperrt={sperrt}
-            laeuft={trennen.isPending && trennen.variables === zeile.issuer}
-            onVerknuepfen={() => {}}
-            onTrennen={() => trennen.mutate(zeile.issuer)}
-          />
-        ))}
-      </div>
-
-      {ergebnis && (
-        <p
-          className={
-            'mt-3 rounded-xl border px-4 py-3 text-sm ' +
-            (ergebnis.ok
-              ? 'border-ok-500/40 bg-ok-500/10 text-ok-500'
-              : 'border-accent-600/50 bg-accent-700/15 text-accent-400')
-          }
+      </ul>
+      <Fenster
+        offen={passwortFuer !== null}
+        titel={passwortFuer ? t('anmeldung.passwordTitle', { name: passwortFuer.label }) : ''}
+        onSchliessen={() => setPasswortFuer(null)}
+        fuss={
+          <>
+            <Button variant="ghost" onClick={() => setPasswortFuer(null)}>
+              {t('common.cancel')}
+            </Button>
+            <Button type="submit" form="verknuepfen-passwort" loading={verknuepfen.isPending}>
+              {t('oidc.account.link')}
+            </Button>
+          </>
+        }
+      >
+        <form
+          id="verknuepfen-passwort"
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (passwortFuer) verknuepfen.mutate({ slug: passwortFuer.slug, password: passwort })
+          }}
         >
-          {ergebnis.text}
-        </p>
-      )}
-      {fehler && (
-        <div className="mt-3">
-          <ErrorBanner message={fehler} />
-        </div>
-      )}
-    </Card>
-  )
-}
-
-function AnbieterZeile({
-  name,
-  display,
-  verknuepft,
-  weg = false,
-  sperrt,
-  laeuft,
-  onVerknuepfen,
-  onTrennen,
-}: {
-  name: string
-  display: string | null
-  verknuepft: boolean
-  weg?: boolean
-  sperrt: boolean
-  laeuft: boolean
-  onVerknuepfen: () => void
-  onTrennen: () => void
-}) {
-  const { t } = useTranslation()
-  return (
-    <div className="flex flex-col gap-2 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex flex-wrap items-center gap-2 text-sm">
-          <span className="font-medium text-mist-200">{name}</span>
-          {verknuepft ? (
-            <span className="text-mist-500">
-              {t('oidc.linkedAs')}{' '}
-              <span className="text-mist-300">{display ?? t('oidc.linkedPlain')}</span>
-            </span>
-          ) : (
-            <span className="text-mist-600">{t('oidc.notLinked')}</span>
+          <p className="text-sm text-mist-500">{t('oidc.account.text')}</p>
+          <Field
+            label={t('anmeldung.password')}
+            type="password"
+            value={passwort}
+            onChange={(event) => setPasswort(event.target.value)}
+            autoComplete="current-password"
+            autoFocus
+            required
+          />
+          {verknuepfen.isError && (
+            <ErrorBanner
+              message={verknuepfen.error instanceof ApiError ? verknuepfen.error.message : t('errors.network')}
+            />
           )}
-        </span>
-
-        {verknuepft ? (
-          <Button variant="ghost" onClick={onTrennen} loading={laeuft} disabled={sperrt}>
-            {t('oidc.unlink')}
-          </Button>
-        ) : (
-          <Button variant="ghost" onClick={onVerknuepfen} loading={laeuft}>
-            {t('oidc.link')}
-          </Button>
-        )}
-      </div>
-
-      {weg && <p className="text-xs text-mist-600">{t('oidc.providerGone')}</p>}
-      {sperrt && verknuepft && (
-        <p className="text-xs text-warn-500">{t('oidc.needsPassword')}</p>
-      )}
-    </div>
+        </form>
+      </Fenster>
+    </Section>
   )
 }

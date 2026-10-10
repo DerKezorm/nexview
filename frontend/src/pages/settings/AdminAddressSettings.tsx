@@ -7,6 +7,9 @@ import type { AppSettings, TestResult } from '../../api/types'
 import { useConfig } from '../../hooks/useConfig'
 import { BASIS, adresseOhneBasis } from '../../lib/basis'
 import { Button, Card, Field, Spinner } from '../../components/ui'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { AdressFrageText } from '../../components/AdressFrageText'
+import { adressFrageAus, type AdressFrage } from '../../lib/adressFrage'
 
 /**
  * Unter welcher Adresse ist Nexview von außen erreichbar?
@@ -41,20 +44,33 @@ export function AdminAddressSettings() {
     setBasisUrl(settingsQuery.data.webhook_basis_url)
   }, [settingsQuery.data])
 
+  // Ändert die Adresse eine Rückleitadresse, die ein Anmelde-Anbieter kennt,
+  // fragt der Server erst zurück (409 `public_url_change`, Bauplan 04).
+  const [frage, setFrage] = useState<AdressFrage | null>(null)
   const saveMutation = useMutation({
-    mutationFn: () => api.put<AppSettings>('/api/settings', { public_url: url.trim() }),
+    mutationFn: (bestaetigt: boolean = false) =>
+      api.put<AppSettings>(`/api/settings${bestaetigt ? '?confirm_address=true' : ''}`, {
+        public_url: url.trim(),
+      }),
     onMutate: () => setResult(null),
     onSuccess: (daten) => {
+      setFrage(null)
       queryClient.setQueryData(['settings'], daten)
       void queryClient.invalidateQueries({ queryKey: ['config'] })
       setUrl(daten.public_url)
       setResult({ ok: true, message: t('settings.saved') })
     },
-    onError: (error) =>
+    onError: (error) => {
+      const gefragt = adressFrageAus(error)
+      if (gefragt) {
+        setFrage(gefragt)
+        return
+      }
       setResult({
         ok: false,
         message: error instanceof ApiError ? error.message : t('settings.saveFailed'),
-      }),
+      })
+    },
   })
 
   const testMutation = useMutation({
@@ -119,7 +135,7 @@ export function AdminAddressSettings() {
           </div>
           <Button
             type="button"
-            onClick={() => saveMutation.mutate()}
+            onClick={() => saveMutation.mutate(false)}
             loading={saveMutation.isPending}
             className="mb-6"
           >
@@ -221,6 +237,15 @@ export function AdminAddressSettings() {
         )}
       </Card>
       )}
+      <ConfirmDialog
+        open={frage !== null}
+        title={t('oidc.admin.address')}
+        description={frage ? <AdressFrageText frage={frage} /> : null}
+        confirmLabel={t('common.save')}
+        loading={saveMutation.isPending}
+        onCancel={() => setFrage(null)}
+        onConfirm={() => saveMutation.mutate(true)}
+      />
     </div>
   )
 }

@@ -18,7 +18,7 @@ from ..deps import DbSession, has_any_user
 from ..models import Role, User
 from ..schemas import AnmeldeWeg, SetupAdminCreate, SetupStatus, TokenPair
 from ..security import hash_password
-from ..services import mail, sicherung, sitzung, tokens
+from ..services import mail, oidc_store, sicherung, sitzung, tokens
 from ..services.mediaserver import PROVIDERS, verbundene_anbieter
 from ..services.settings_service import load_settings
 from . import seerr_umzug
@@ -54,6 +54,7 @@ def setup_status(db: DbSession) -> SetupStatus:
         mediaserver_login=bool(wege),
         mediaserver_provider=settings.mediaserver_provider or None,
         mediaserver_login_ways=wege,
+        password_login=oidc_store.passwort_anmeldung(db),
     )
 
 

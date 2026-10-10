@@ -633,6 +633,35 @@
           "Ein gelungener Webhook-Test nimmt die Warnung, die er widerlegt, sofort weg statt erst beim nächsten Wartungslauf.",
           "Eine große Radarr- oder Sonarr-Bibliothek bekommt 90 Sekunden zum Antworten, und eine Speichermessung, der eine Instanz fehlte, wird nach fünf Minuten wiederholt."
         ]
+      },
+      "1.1.0": {
+        "lead": "Die Anmeldung über fremde Anbieter ist neu gebaut, nach demselben Bauplan wie in allen nex-Apps: mehrere Anbieter nebeneinander, authentik in einem Schritt, Microsoft Entra ID für mehrere Mandanten, und Einladungen, die über den Anbieter angenommen werden.",
+        "sections": [
+          {
+            "title": "authentik in einem Schritt",
+            "where": "Einstellungen, System, Anmeldung, dritte Karte",
+            "body": "Adresse von authentik und ein API-Token eintragen, Einrichten drücken: Nexview legt Anbieter und Anwendung in authentik selbst an und trägt alles hier ein. Jeder Schritt steht mit Haken oder Kreuz da, ein gescheiterter sagt warum. Wer lieber selbst einspielt, lädt stattdessen den Blueprint herunter. Das Token wird nicht gespeichert."
+          },
+          {
+            "title": "Einladungen über den Anbieter annehmen",
+            "where": "Einladungsseite, unter dem Formular",
+            "body": "Wer eingeladen ist, wählt dort „Weiter mit …“ statt eines Passworts. Die Einladung reist zum Anbieter und zurück und bringt ihre Rechte mit; sie gilt genau einmal."
+          },
+          {
+            "title": "Nur noch die Identität beim Anbieter zählt",
+            "where": "Profil, Konto, Sicherheit, Anmeldeanbieter",
+            "body": "Ein Konto wird nicht mehr über eine bestätigte Mailadresse verknüpft, auch wenn der Anbieter sie meldet. Wer sich bisher so angemeldet hat, ist schon verknüpft und merkt nichts; alle anderen verknüpfen sich im Profil, mit ihrem Passwort, oder kommen mit einer Einladung."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Mehrere Anbieter gleichzeitig, je Anbieter ein Knopf, in einer Reihenfolge, die du ziehst.",
+          "Microsoft Entra ID mit common oder organizations: jeder Mandant, bei dem Aussteller und tid übereinstimmen, meldet an.",
+          "Die Anmeldung mit Passwort lässt sich abschalten, sobald ein Anbieter aktiv ist; der Betreiber kommt immer mit Passwort herein.",
+          "Ein anderer Aussteller ist ein anderer Anbieter: Die Verknüpfungen dieses Eintrags verfallen, nach einer Rückfrage mit der Zahl der Konten.",
+          "In der Kontenliste stehen die Anbieter eines Kontos als Marken, und eine Verknüpfung lässt sich dort lösen.",
+          "Anbieter, die du mit 1.0.1 eingerichtet hast, behalten ihre Rückleitadresse; das Update überträgt sie samt Verknüpfungen von selbst."
+        ]
       }
     }
   }

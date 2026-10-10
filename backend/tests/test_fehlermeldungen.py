@@ -50,6 +50,16 @@ FREMDER_TEXT = {
     "mediaserver_unreachable",
 }
 
+# ⚠️ Kennungen des gemeinsamen Anmeldemoduls (``vendor/nexoidc``). Ihre Saetze
+# stehen nicht unter ``errors.byCode``, sondern kommen mit dem Modul
+# (``oidc.error.*``, ``oidc.formError.*`` in ``frontend/src/vendor/nexoidc``) -
+# in jeder nex-App dieselben Woerter. ``api/client.ts`` schlaegt sie dort nach;
+# ``test_die_kennungen_des_moduls_haben_ihre_saetze`` bewacht, dass es sie gibt.
+from app.vendor.nexoidc import CODES as OIDC_CODES  # noqa: E402
+from app.vendor.nexoidc import FORM_CODES as OIDC_FORM_CODES  # noqa: E402
+
+MIT_MODULTEXT = set(OIDC_CODES) | set(OIDC_FORM_CODES)
+
 
 def _saetze_kennungen(text: str) -> set[str]:
     """Die Schluessel von ``SAETZE`` in ``beschaffung/nex/fehler.py``."""
@@ -151,7 +161,7 @@ def test_jede_fehlerkennung_hat_einen_text() -> None:
     Antwort zurueck - die Meldung ist also nicht kaputt, nur in der falschen
     Sprache. Genau deshalb braucht es diesen Test: Ohne ihn faellt es nie auf.
     """
-    kennungen = _kennungen_im_backend() - MIT_EIGENER_LOGIK - FREMDER_TEXT
+    kennungen = _kennungen_im_backend() - MIT_EIGENER_LOGIK - FREMDER_TEXT - MIT_MODULTEXT
     assert kennungen, "Keine einzige Fehler-Kennung gefunden - stimmt der Pfad?"
 
     for sprache in ("de", "en"):
@@ -215,3 +225,15 @@ def test_kein_platzhalter_ohne_zahlen_dahinter() -> None:
         f"Platzhalter ohne Wert in der Antwort: {ohne_werte}. "
         "Die geschweiften Klammern stehen dann woertlich in der Meldung."
     )
+
+
+def test_die_kennungen_des_moduls_haben_ihre_saetze() -> None:
+    """Die Saetze der Anmeldung ueber Anbieter kommen mit dem Modul - in beiden Sprachen."""
+    modul = BACKEND.parent.parent / "frontend" / "src" / "vendor" / "nexoidc"
+    for sprache in ("de", "en"):
+        daten = json.loads((modul / f"oidc.{sprache}.json").read_text(encoding="utf-8"))
+        fehlend = sorted(
+            [k for k in OIDC_CODES if not isinstance(_text(daten, f"oidc.error.{k}"), str)]
+            + [k for k in OIDC_FORM_CODES if not isinstance(_text(daten, f"oidc.formError.{k}"), str)]
+        )
+        assert len(OIDC_CODES) >= 16 and not fehlend, (sprache, fehlend)

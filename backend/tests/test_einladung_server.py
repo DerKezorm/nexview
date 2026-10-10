@@ -25,14 +25,13 @@ from app.models import (
     User,
     UserMediaServerAccount,
 )
-from app.services import einladung_server, mail, oidc_accounts
+from app.services import einladung_server, mail, oidc_store
 from app.services import mediaserver_accounts as konten
 from app.services.mediaserver import Bibliothek, ExternalAccount, LoginChallenge, MediaServerError
 from app.services.mediaserver_accounts import KontoFehler
 from app.services.settings_service import load_settings
 
 from .conftest import create_user
-from .test_oidc_dienst import _identitaet
 from .test_onboarding import ZUGANG, _link_aus, _token_aus
 
 PASSWORT = "eigenes-pw-123"
@@ -529,9 +528,15 @@ def test_gesehen_nimmt_den_hinweis_und_das_nachholen_weg(
 def test_mit_servern_gilt_die_einladung_nur_ueber_den_link(
     admin_client: TestClient, postfach: list[EmailMessage], server: dict[str, FakeServer]
 ) -> None:
-    """Sonst entstuende das Nexview-Konto still ohne die Konten auf den Servern."""
+    """Sonst entstuende das Nexview-Konto still ohne die Konten auf den Servern.
+
+    Ueber einen Anmelde-Anbieter reist die Einladung als Schluessel mit
+    (``/api/oidc/<slug>/start?invite=``); fuer das Anmeldemodul ist sie dann
+    schlicht ungueltig (``invite_invalid``), statt still weniger zu geben.
+    """
     _verbinden("jellyfin")
     _einladen(admin_client, {"provider": "jellyfin", "bibliotheken": ["jf-filme"]})
+    roh = _roh(postfach)
     ueber_plex = ExternalAccount(
         provider="plex", account_id="999", username="neu", email="neu@example.com", thumb=None
     )
@@ -540,14 +545,9 @@ def test_mit_servern_gilt_die_einladung_nur_ueber_den_link(
         with pytest.raises(KontoFehler) as medienserver:
             konten.resolve(db, load_settings(db), ueber_plex)
         db.rollback()
-        with pytest.raises(KontoFehler) as anmeldedienst:
-            oidc_accounts.resolve(
-                db, load_settings(db), _identitaet(email="neu@example.com"), auto_create=True
-            )
-        db.rollback()
+        assert oidc_store.SqlStore(db).find_invite(roh) is None
 
     assert medienserver.value.code == "invite_use_link"
-    assert anmeldedienst.value.code == "invite_use_link"
     with SessionLocal() as db:
         assert db.query(User).filter(User.email == "neu@example.com").count() == 0
         assert db.query(AuthToken).filter(AuthToken.purpose == TokenPurpose.invitation).one().open

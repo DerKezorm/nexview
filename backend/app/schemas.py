@@ -89,6 +89,11 @@ class SetupStatus(BaseModel):
     # nur Jellyfin war das ein Knopf, der beim Klick scheiterte - der Ablauf
     # dahinter ist auf plex.tv zugeschnitten.
     mediaserver_login_ways: list[AnmeldeWeg] = []
+    # Die Anmeldung mit Passwort (Bauplan "Anmeldung mit OIDC und authentik", 01):
+    # ``False`` nur, wenn der Betreiber sie abgeschaltet hat **und** mindestens
+    # ein Anmelde-Anbieter aktiv ist. Dann zeigt die Anmeldeseite nur die Knoepfe
+    # und unten klein den Weg fuer den Betreiber.
+    password_login: bool = True
 
 
 class AnmeldeWeg(BaseModel):
@@ -158,19 +163,18 @@ class VerknuepftesKonto(BaseModel):
 
 
 class OidcVerknuepfung(BaseModel):
-    """Eine OIDC-Anmeldung am eigenen Konto - fuer die Anzeige im Profil.
+    """Eine Verknuepfung mit einem Anmelde-Anbieter - fuer Profil und Kontenliste.
 
-    Die Anbieter-Adresse statt eines Kuerzels, weil die Verknuepfung an ihr
-    haengt: Das Profil ordnet sie ueber die oeffentliche Anbieter-Liste einer
-    Beschriftung zu - und zeigt die Adresse selbst, wenn der Eintrag des
-    Administrators inzwischen weg ist. ``subject`` bleibt drinnen: Es sagt
-    einem Menschen nichts.
+    Kurzname und Name des Eintrags; ``subject`` bleibt drinnen, es sagt einem
+    Menschen nichts. Die Adresse beim Anbieter steht nur zur Anzeige da.
     """
 
     model_config = ConfigDict(from_attributes=True)
 
-    issuer: str
-    display: str | None = None
+    provider_id: int
+    slug: str
+    label: str
+    email: str | None = None
 
 
 class FassungRechtOut(BaseModel):

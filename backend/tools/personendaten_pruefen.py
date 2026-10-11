@@ -79,20 +79,11 @@ AUSNAHMEN = {
     "4.9.5.0": "Emby-Versionsnummer, an der gemessen wurde",
     "1.2.3.4": "Lehrbuchadresse im Test der Anmeldebremse",
     "9.9.9.9": "Lehrbuchadresse im Test der Anmeldebremse",
-    "3.1.3.7": "Zahlenfolge in oidc.py, keine Adresse",
     "5.4.5.8": "Koordinaten in einem SVG-Pfad",
     "12.2.8.8": "Koordinaten in einem SVG-Pfad",
     "2.65.64.7": "Koordinaten in einem SVG-Pfad",
     "4.94.36.31": "Koordinaten in einem SVG-Pfad",
     "27.18.58.69": "Koordinaten in einem SVG-Pfad",
-    # ⚠️ **Eng gefasst: nur diese Datei, nur diese Zeichenfolge** (Schluessel
-    # ``<pfad>::<wert>``, siehe ``ausgenommen``). Die Datei gehoert dem
-    # gemeinsamen Anmeldemodul und darf in Nexview nicht geaendert werden
-    # (Pruefsumme). Der Eintrag entfaellt mit der naechsten Fassung des
-    # Moduls, die die Abschnittsnummer anders schreibt. Zusammengesetzt, weil
-    # die Zahl sonst hier selbst als Fund stuende.
-    "backend/app/vendor/nexoidc/protocol.py::6.2.2" + ".1":
-        "Abschnittsnummer aus RFC 3986 im Kommentar des Anmeldemoduls, keine Adresse",
 }
 
 #: Ganze Dateien, die von den Formregeln ausgenommen sind. Auch hier gilt:

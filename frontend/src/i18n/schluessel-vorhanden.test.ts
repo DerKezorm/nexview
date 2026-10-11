@@ -68,7 +68,7 @@ const deutsch = new Set(
     ...de,
     whatsNew: { ...de.whatsNew, ...deWasNeu.whatsNew },
     ...deDownloads,
-    ...oidcWording(oidcDe, { singleAccount: false }),
+    ...oidcWording(oidcDe, { singleAccount: false, invitations: true }),
   }),
 )
 const englisch = new Set(
@@ -76,7 +76,7 @@ const englisch = new Set(
     ...en,
     whatsNew: { ...en.whatsNew, ...enWasNeu.whatsNew },
     ...enDownloads,
-    ...oidcWording(oidcEn, { singleAccount: false }),
+    ...oidcWording(oidcEn, { singleAccount: false, invitations: true }),
   }),
 )
 

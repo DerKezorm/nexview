@@ -17,7 +17,7 @@ tag exists for it.
 ### Added
 
 - **Sign-in follows the shared blueprint of the nex apps** ("Anmeldung mit OIDC und
-  authentik"), through the shared module `nexoidc` 1.0.11: several providers at once
+  authentik"), through the shared module `nexoidc` 1.0.12: several providers at once
   with one button each, **authentik in one step** with a blueprint to download,
   **Microsoft Entra ID** with `common` and `organizations`, invitations accepted through
   the provider (`/api/oidc/<slug>/start?invite=`), password sign-in that can be switched

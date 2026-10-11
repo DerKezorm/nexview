@@ -21,7 +21,7 @@
 import i18n from 'i18next'
 import { initReactI18next } from 'react-i18next'
 
-import { oidcWording } from '../vendor/nexoidc/oidc'
+import { oidcVariables, oidcWording } from '../vendor/nexoidc/oidc'
 import { downloadsNachziehen } from './downloads'
 import { wasNeuNachziehen } from './wasneu'
 
@@ -65,7 +65,7 @@ function mitAnmeldetexten(
   eigene: Record<string, unknown>,
   oidc: Record<string, unknown>,
 ): Record<string, unknown> {
-  return { ...eigene, ...oidcWording(oidc as Parameters<typeof oidcWording>[0], { singleAccount: false }) }
+  return { ...eigene, ...oidcWording(oidc as Parameters<typeof oidcWording>[0], { singleAccount: false, invitations: true }) }
 }
 
 function initialLanguage(): Language {
@@ -95,7 +95,7 @@ export async function i18nStarten(sprache: Language = initialLanguage()): Promis
     // Siehe oben: Eine Rückfallsprache, die nicht geladen ist, hilft nicht.
     fallbackLng: false,
     // `{{app}}` in den Texten des Anmeldemoduls.
-    interpolation: { escapeValue: false, defaultVariables: { app: 'Nexview' } },
+    interpolation: { escapeValue: false, defaultVariables: oidcVariables('Nexview') },
   })
   document.documentElement.lang = sprache
 }

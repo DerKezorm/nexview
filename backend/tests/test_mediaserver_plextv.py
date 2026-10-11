@@ -21,6 +21,7 @@ KONTO_ANTWORT = {
     "id": 4711,
     "username": "Testkonto",
     "email": "gast@beispiel.de",
+    "confirmed": True,
     "thumb": "https://plex.tv/bild.png",
 }
 
@@ -128,6 +129,32 @@ async def test_konto_ohne_adresse(monkeypatch: pytest.MonkeyPatch) -> None:
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(200, json={"id": 12, "username": "Kind", "email": ""})
+
+    monkeypatch.setattr(
+        base, "_client", httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    )
+    konto = await plextv.account_for_token(KENNUNG, "anbieter-token")
+
+    assert konto.email is None
+    assert konto.account_id == "12"
+
+
+@pytest.mark.parametrize(
+    "bestaetigt",
+    [False, None, "true", 1],
+    ids=["nein", "fehlt", "text", "zahl"],
+)
+async def test_eine_von_plex_unbestaetigte_adresse_ist_keine(
+    monkeypatch: pytest.MonkeyPatch, bestaetigt: object
+) -> None:
+    """plex.tv nennt die Adresse auch, bevor jemand sie bestaetigt hat. Sie ist dann kein Ausweis:
+    Nexview verknuepft und loest Einladungen ueber sie ein. Nur ``confirmed: true`` zaehlt."""
+    antwort: dict[str, object] = {"id": 12, "username": "Neu", "email": "opfer@example.com"}
+    if bestaetigt is not None:
+        antwort["confirmed"] = bestaetigt
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json=antwort)
 
     monkeypatch.setattr(
         base, "_client", httpx.AsyncClient(transport=httpx.MockTransport(handler))

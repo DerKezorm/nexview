@@ -701,6 +701,45 @@ def test_der_medienserver_bestaetigt_nur_die_adresse_die_das_konto_traegt() -> N
         assert gleich.email_verified is True
 
 
+@pytest.mark.parametrize("bestaetigt", [False, True])
+async def test_eine_bei_plex_unbestaetigte_adresse_findet_kein_konto(
+    monkeypatch: pytest.MonkeyPatch, bestaetigt: bool
+) -> None:
+    """Wer Zugang zum Plex-Server hat und sein Plex-Konto mit der Adresse eines anderen anlegt, ohne sie
+    bei Plex zu bestaetigen, landet bei der ersten Anmeldung nicht in dessen Konto. Gegenprobe: mit
+    bestaetigter Adresse traegt die Bruecke wie immer."""
+    import httpx
+
+    from app.services.mediaserver import base as ms_base
+    from app.services.mediaserver import plextv
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"id": 4711, "username": "fremd", "email": "Opfer@Example.com", "confirmed": bestaetigt},
+        )
+
+    monkeypatch.setattr(ms_base, "_client", httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    konto = await plextv.account_for_token("kennung", "anbieter-token")
+
+    with SessionLocal() as db:
+        opfer = User(username="opfer", password_hash="x", email="opfer@example.com", email_verified=True)
+        db.add(opfer)
+        db.commit()
+        assert opfer.email_origin == ""
+        try:
+            gefunden: User | None = medienserver.resolve(db, load_settings(db), konto)
+        except medienserver.KontoFehler:
+            gefunden = None
+        if bestaetigt:
+            assert gefunden is not None and gefunden.id == opfer.id
+        else:
+            assert gefunden is None or gefunden.id != opfer.id
+            db.rollback()
+            opfer = db.scalar(select(User).where(User.username == "opfer"))
+            assert opfer is not None and opfer.mediaserver_accounts == []
+
+
 def test_eine_vom_betreiber_gesetzte_adresse_verknuepft_wie_bisher() -> None:
     with SessionLocal() as db:
         db.add(User(username="bea", password_hash="x", email="bea@example.com", email_verified=False))

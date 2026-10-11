@@ -169,14 +169,34 @@ async def account_for_token(client_identifier: str, token: str) -> ExternalAccou
     if account_id is None:
         raise MediaServerError("Plex hat kein Konto zu dieser Anmeldung geliefert.")
 
-    email = (data.get("email") or "").strip() or None
     return ExternalAccount(
         provider="plex",
         account_id=str(account_id),
         username=(data.get("username") or data.get("title") or "").strip() or f"plex-{account_id}",
-        email=email,
+        email=_bestaetigte_adresse(data),
         thumb=(data.get("thumb") or "").strip() or None,
     )
+
+
+def _bestaetigte_adresse(data: dict[str, Any]) -> str | None:
+    """Die Adresse des Kontos - aber nur, wenn Plex sie bestaetigt hat.
+
+    ⚠️ **Eine Adresse, die Plex nicht bestaetigt hat, ist keine.** plex.tv laesst
+    ein Konto mit jeder beliebigen Adresse anlegen und meldet sie danach in
+    ``/user``, auch bevor jemand den Link in der Mail geoeffnet hat. Ob das
+    geschehen ist, steht in ``confirmed``. Nexview nimmt die Adresse als
+    Ausweis: Sie verknuepft bei der ersten Anmeldung ein bestehendes Konto
+    (``mediaserver_accounts.resolve``), loest eine Einladung ein und gilt danach
+    als bestaetigt (``link``). Wer Zugang zum Plex-Server hat und sein Plex-Konto
+    mit der Adresse eines anderen angelegt hat, landete sonst in dessen Konto.
+
+    Ohne ``confirmed: true`` geht es weiter wie ohne Adresse: anmelden wie
+    gewohnt, dann Plex im Profil verknuepfen. Fehlt das Feld, gilt nein.
+    """
+    adresse = (data.get("email") or "").strip()
+    if not adresse or data.get("confirmed") is not True:
+        return None
+    return adresse
 
 
 def _urls(connections: list[dict[str, Any]]) -> tuple[str, ...]:

@@ -77,6 +77,34 @@ def test_cookie_secure_laesst_sich_erzwingen(
     ).lower()
 
 
+@pytest.mark.parametrize(
+    ("einstellung", "kopf", "secure"),
+    [
+        ("proxy", "https", True),
+        ("proxy", "HTTPS", True),
+        ("proxy:2", "http, https", True),
+        ("proxy", "https, http", False),
+        ("proxy", "https2", False),
+        ("", "https", False),
+        ("direct", "https", False),
+    ],
+)
+def test_secure_folgt_dem_schema_nur_vom_vertrauten_proxy(
+    admin_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    einstellung: str,
+    kopf: str,
+    secure: bool,
+) -> None:
+    """``auto`` hinter einem TLS-Proxy: Das Schema aus ``X-Forwarded-Proto`` zaehlt nur, wenn
+    ``NEXVIEW_CLIENT_IP`` dem Proxy vertraut, und dann nur der rechteste Wert. Ab Werk nie."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "client_ip", einstellung)
+    antwort = admin_client.post("/api/auth/login", json=ADMIN, headers={"X-Forwarded-Proto": kopf})
+    assert ("secure" in _set_cookie_kopf(antwort).lower()) is secure
+
+
 def test_abmelden_nimmt_das_cookie_weg(admin_client: TestClient) -> None:
     admin_client.post("/api/auth/login", json=ADMIN)
     assert admin_client.post("/api/auth/refresh").status_code == 200

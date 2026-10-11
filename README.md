@@ -450,7 +450,7 @@ browser only ever sends it over HTTPS:
 | Value | When |
 |---|---|
 | `auto` | Default. `Secure` is set whenever the request itself arrived over HTTPS. Works everywhere, including plain HTTP. |
-| `on` | Always set it. Use this when a reverse proxy terminates HTTPS and forwards plain HTTP to Nexview — Nexview sees `http` and would leave it off. |
+| `on` | Always set it. Use this when a reverse proxy terminates HTTPS and forwards plain HTTP to Nexview and you do not tell Nexview about the proxy with `NEXVIEW_CLIENT_IP` (see below); Nexview then sees `http` and would leave it off. |
 | `off` | Never set it. |
 
 > ⚠️ Do not set `on` if Nexview is meant to be reachable over `http://`. A browser throws

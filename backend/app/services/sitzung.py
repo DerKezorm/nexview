@@ -98,9 +98,12 @@ def _secure(request: Request) -> bool:
     selbstgehosteten Anwendung viele. Lieber ein Cookie ohne Secure als eine
     Anmeldung, die nicht mehr geht.
 
-    Hinter einem HTTPS-Proxy, der intern http weiterreicht, sieht Nexview
-    ``http``. Dafuer gibt es ``NEXVIEW_COOKIE_SECURE=on``. Geraten wird nicht -
-    siehe die Begruendung an der Einstellung in ``config.py``.
+    Hinter einem HTTPS-Proxy, der intern http weiterreicht, kommt die Anfrage
+    als ``http`` an. Das Schema des Proxys (``X-Forwarded-Proto``) gilt nur,
+    wenn ``NEXVIEW_CLIENT_IP=proxy`` ihm vertraut; dann hat es
+    ``WeitergereichtesSchemaMiddleware`` schon eingesetzt, und hier steht
+    ``https``. Sonst gibt es ``NEXVIEW_COOKIE_SECURE=on``. Ein gefaelschter Kopf
+    macht das Cookie hoechstens strenger, nie lockerer.
     """
     einstellung = (get_settings().cookie_secure or "auto").strip().lower()
     if einstellung == "on":

@@ -91,6 +91,13 @@ class Settings(BaseSettings):
     # aus wie dieselbe Adresse. Eine Sperre nach Adresse wuerde dort beim
     # ersten Vertipper den ganzen Haushalt aussperren.
     #
+    # ``proxy`` ist zugleich die Einstellung fuer vertraute Proxys: Nur mit ihr
+    # gilt das Schema aus ``X-Forwarded-Proto`` (``WeitergereichtesSchemaMiddleware``).
+    # Ab Werk vertraut Nexview selbst keinem Absender. ⚠️ uvicorn davor nimmt
+    # den Kopf ab Werk von 127.0.0.1 (``--forwarded-allow-ips``), ganz und
+    # nur bei genau ``http``/``https``; das betrifft nur Absender auf dem Rechner
+    # selbst, etwa einen Proxy daneben im Host-Netzwerk.
+    #
     # Erlaubt: direct | proxy | proxy:<Zahl>
     client_ip: str = ""
 
@@ -103,18 +110,18 @@ class Settings(BaseSettings):
     # und bleibt angemeldet - ein Secure-Cookie wuerde der Browser dort
     # wegwerfen, und niemand kaeme mehr hinein.
     #
-    # Der Preis der Vorgabe: Steht ein Reverse Proxy davor, der HTTPS
-    # abschliesst und intern schlichtes http weiterreicht, sieht Nexview
-    # ``http`` und laesst Secure weg. Das Cookie funktioniert trotzdem, ist
-    # aber nicht dagegen geschuetzt, versehentlich ueber eine unverschluesselte
-    # Verbindung zum selben Rechner zu wandern. Wer HTTPS erzwingt, setzt
-    # deshalb ``NEXVIEW_COOKIE_SECURE=on``.
+    # Steht ein Reverse Proxy davor, der HTTPS abschliesst und intern
+    # schlichtes http weiterreicht, kommt die Anfrage als ``http`` an. Dann
+    # gibt es zwei Wege: ``NEXVIEW_CLIENT_IP=proxy`` (siehe ``client_ip``), mit
+    # dem Nexview dem Schema des Proxys glaubt und ``auto`` ihm folgt, oder
+    # ``NEXVIEW_COOKIE_SECURE=on``.
     #
-    # ⚠️ Bewusst wird **nicht** ``X-Forwarded-Proto`` geraten. Der Kopf ist
-    # genauso faelschbar wie ``X-Forwarded-For``, und bei der Anmeldebremse hat
-    # sich Nexview schon einmal gegen das Raten und fuer das Fragen
-    # entschieden. Zwei Stellen mit derselben Frage sollen dieselbe Antwort
-    # geben.
+    # ⚠️ ``X-Forwarded-Proto`` wird **nicht** geraten. Der Kopf ist genauso
+    # faelschbar wie ``X-Forwarded-For`` und zaehlt deshalb nur mit derselben
+    # Einstellung wie bei der Anmeldebremse, und dann nur der rechteste Wert
+    # (``middleware.WeitergereichtesSchemaMiddleware``). Zwei Stellen mit
+    # derselben Frage sollen dieselbe Antwort geben. Ein gefaelschter Wert
+    # macht das Cookie hoechstens strenger.
     #
     # Erlaubt: auto | on | off
     cookie_secure: str = "auto"

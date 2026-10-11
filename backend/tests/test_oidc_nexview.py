@@ -492,6 +492,38 @@ def test_eine_websocket_verbindung_bekommt_wss() -> None:
     assert gesehen["scheme"] == "wss"
 
 
+@pytest.mark.parametrize(
+    ("zeilen", "erwartet"),
+    [
+        ([b"https", b"http"], "http"),
+        ([b"http", b"https"], "https"),
+        ([b"http", b"http, https"], "https"),
+        ([b"https", b"https, ftp"], "http"),
+        ([b"https", b""], "http"),
+    ],
+)
+def test_bei_mehreren_kopfzeilen_zaehlt_der_letzte_wert_der_letzten(zeilen: list[bytes], erwartet: str) -> None:
+    """Zwei Proxys koennen je eine eigene Zeile anhaengen; den letzten Wert hat der eigene gesetzt.
+    Ist er kein Schema, gibt es keinen Wert, und das Schema der Verbindung bleibt."""
+    import asyncio
+
+    from app.middleware import WeitergereichtesSchemaMiddleware
+
+    gesehen: dict[str, Any] = {}
+
+    async def innen(scope: dict, _receive: Any, _send: Any) -> None:
+        gesehen.update(scope)
+
+    vorher = get_settings().client_ip
+    get_settings().client_ip = "proxy"
+    try:
+        scope = {"type": "http", "scheme": "http", "headers": [(b"x-forwarded-proto", z) for z in zeilen]}
+        asyncio.run(WeitergereichtesSchemaMiddleware(innen)(scope, None, None))
+    finally:
+        get_settings().client_ip = vorher
+    assert gesehen["scheme"] == erwartet
+
+
 # ---------------------------------------------------------------------------
 # Namen und neue Konten
 # ---------------------------------------------------------------------------

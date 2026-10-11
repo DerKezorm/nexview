@@ -92,4 +92,19 @@ describe('Anbieter-Formular', () => {
       expect.objectContaining({ trusts_second_factor: true }),
     )
   })
+
+  it('legt einen neuen Anbieter mit eingeschaltetem Wert für den zweiten Faktor an', async () => {
+    vi.mocked(api.post).mockResolvedValue({})
+    const user = userEvent.setup()
+    rendernSchlicht(<AdminOidcSettings />)
+    await screen.findByTestId('anbieter-liste')
+    await user.click(screen.getByRole('button', { name: /^Anbieter hinzufügen$/ }))
+    const fenster = await screen.findByRole('dialog')
+    await user.click(within(fenster).getByRole('button', { name: /^Speichern$/ }))
+    await waitFor(() => expect(api.post).toHaveBeenCalled())
+    expect(api.post).toHaveBeenCalledWith(
+      '/api/oidc/admin/providers',
+      expect.objectContaining({ trusts_second_factor: true }),
+    )
+  })
 })

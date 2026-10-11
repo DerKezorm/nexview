@@ -545,6 +545,10 @@ def test_eine_einladung_gibt_dem_neuen_konto_ihre_adresse_bestaetigt(
         alex = db.scalar(select(User).where(User.username == "alex"))
         assert alex is not None and alex.role == Role.approver
         assert alex.email is not None and alex.email.startswith("eingeladen-") and alex.email_verified
+        # Die Adresse stammt aus der Einladung, nicht vom Anbieter: Sie darf ein Konto finden.
+        assert alex.email_origin == ""
+        adresse = alex.email
+        assert _ueber_plex(db, adresse).id == alex.id
 
 
 def test_der_alte_rueckweg_gehoert_nur_eintraegen_die_ihn_tragen(
@@ -681,6 +685,20 @@ def test_der_link_zum_passwort_bestaetigt_die_adresse_vom_anbieter(client: Any) 
         alex = db.get(User, kennung)
         assert alex is not None and (alex.email_origin, alex.email_verified) == ("", True)
         assert _ueber_plex(db, "alex@example.com").id == kennung
+
+
+def test_der_medienserver_bestaetigt_nur_die_adresse_die_das_konto_traegt() -> None:
+    """Meldet der Medienserver eine andere Adresse, bleibt die im Konto stehende unbestaetigt - sonst
+    zaehlte eine fremde Adresse fuer den Mailversand als bestaetigt."""
+    with SessionLocal() as db:
+        fremd = User(username="cora", password_hash="x", email="opfer@example.com", email_verified=False)
+        gleich = User(username="dirk", password_hash="x", email="dirk@example.com", email_verified=False)
+        db.add_all([fremd, gleich])
+        db.flush()
+        medienserver.link(fremd, ExternalAccount(provider="plex", account_id="1", username="c", email="angreifer@example.org"))
+        medienserver.link(gleich, ExternalAccount(provider="plex", account_id="2", username="d", email="Dirk@Example.com"))
+        assert fremd.email_verified is False
+        assert gleich.email_verified is True
 
 
 def test_eine_vom_betreiber_gesetzte_adresse_verknuepft_wie_bisher() -> None:

@@ -276,7 +276,11 @@ def link(user: User, account: ExternalAccount, token: str | None = None) -> None
     # geloescht, verloere jemand mit bestaetigter Plex-Adresse sie in dem
     # Moment, in dem er Jellyfin dazunimmt - und damit seinen Weg zurueck ins
     # Konto.
-    if account.email:
+    #
+    # ⚠️ Und nur fuer die Adresse, die das Konto wirklich traegt: Meldet der
+    # Medienserver eine andere, bleibt eine fremde Adresse im Konto unbestaetigt
+    # (sonst ginge an sie Mail, ohne dass je jemand sie bestaetigt hat).
+    if account.email and user.email and account.email.strip().casefold() == user.email.strip().casefold():
         user.email_verified = True
 
 

@@ -100,8 +100,9 @@ its own page and more screenshots.
   then runs in the parent's name
 - A block list for titles that should stay out: visible, but not requestable
 - Sign in through **Authentik, Keycloak, Pocket ID, Authelia, Zitadel, Google** or any
-  other OpenID Connect provider — added alongside the password, never replacing it.
-  Roles and quotas stay in Nexview; no group from the provider changes them
+  other OpenID Connect provider, several side by side, with **authentik set up in one
+  step** and Microsoft Entra ID for several tenants. Roles and quotas stay in Nexview;
+  no group from the provider changes them
 - One account **owns** the installation: no other administrator can switch it off,
   delete it, demote it or set its password. Handed on by its holder alone
 

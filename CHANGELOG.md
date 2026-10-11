@@ -12,7 +12,13 @@ tag exists for it.
 
 ---
 
-## 1.1.0 – unreleased
+## 1.1.0 – 11.10.2026
+
+⚠️ **Make a backup before updating.** The update rebuilds the sign-in provider tables
+and moves the links of each person to the new ones. Nexview writes a backup to
+`sicherungen/` in the data directory first (*Before update to 1.1.0* in its name) and
+names the file in the start log. **Going back to 1.0.1 works only with that backup**,
+as described in the README under *Going back to an older version*.
 
 ### Added
 
@@ -44,6 +50,13 @@ tag exists for it.
   media server in the profile instead. Accounts linked to a provider in 1.0.1 count as
   having their address from the provider until it is confirmed.
 - Invitation keys in the address (`?invite=`) are masked in the log.
+- **Plex, Jellyfin and Emby only match addresses Nexview has confirmed.** If you run a
+  media-server sign-in, check that your people have confirmed their address in the
+  profile, or set it yourself as operator; nobody else is matched through it any more.
+
+### Fixed
+
+- **Mails carry a `Date` header.** Some providers dropped mails without one silently.
 
 ---
 

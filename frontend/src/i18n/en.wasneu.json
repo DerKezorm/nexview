@@ -660,7 +660,12 @@
           "Signing in with a password can be switched off once a provider is on; the operator always gets in with the password.",
           "Another issuer is another provider: the links of that entry go, after a question naming the number of accounts.",
           "The users list shows an account's providers as marks, and a link can be removed there.",
-          "Providers you set up with 1.0.1 keep their redirect address; the update moves them and their links over by itself."
+          "Providers you set up with 1.0.1 keep their redirect address; the update moves them and their links over by itself.",
+          "Plex, Jellyfin and Emby sign-in only match an address that is confirmed in Nexview or set by the operator; an address taken over from a provider no longer counts.",
+          "Saving the public address asks first when a provider knows the old redirect address.",
+          "Behind a proxy, NEXVIEW_CLIENT_IP=proxy now also believes X-Forwarded-Proto, so the redirect address is https.",
+          "Invitation keys are masked in the log, and mails carry a Date header again.",
+          "Going back to 1.0.1 works only with the backup taken before this update, in the folder sicherungen."
         ]
       }
     }

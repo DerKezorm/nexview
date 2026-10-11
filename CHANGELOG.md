@@ -12,6 +12,21 @@ tag exists for it.
 
 ---
 
+## 1.1.1 – 11.10.2026
+
+### Fixed
+
+- **Signing in through Plex only uses an address Plex has confirmed.** At the first
+  sign-in with Plex, an address that plex.tv had not confirmed could still find an
+  existing account, or redeem an invitation sent to that address. Nexview now takes the
+  address only when plex.tv reports it as `confirmed`; otherwise the sign-in goes on as
+  without an address (sign in to the account and link Plex in the profile). Jellyfin and
+  Emby send no address and are not affected.
+
+### Changed
+
+- The README now says when `NEXVIEW_COOKIE_SECURE=on` is still needed behind a TLS proxy.
+
 ## 1.1.0 – 11.10.2026
 
 ⚠️ **Make a backup before updating.** The update rebuilds the sign-in provider tables

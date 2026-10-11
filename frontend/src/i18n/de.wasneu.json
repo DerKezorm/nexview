@@ -667,6 +667,20 @@
           "Einladungsschlüssel werden im Log geschwärzt, und Mails tragen wieder einen Date-Header.",
           "Zurück auf 1.0.1 geht nur mit der Sicherung, die vor diesem Update im Ordner sicherungen liegt."
         ]
+      },
+      "1.1.1": {
+        "lead": "Ein kleines Reparatur-Release für die Anmeldung über Plex.",
+        "sections": [
+          {
+            "title": "Plex: nur eine Adresse, die Plex bestätigt hat",
+            "where": "Anmeldeseite, Anmelden mit Plex",
+            "body": "Meldete sich jemand zum ersten Mal mit Plex an, konnte Nexview über die Mailadresse des Plex-Kontos ein bestehendes Konto finden, auch wenn Plex diese Adresse nie bestätigt hatte. Jetzt nimmt Nexview die Adresse nur, wenn plex.tv sie als bestätigt meldet. Sonst geht die Anmeldung weiter, als hätte Plex keine Adresse geschickt: Die Person meldet sich mit ihrem Konto an und verknüpft Plex im Profil, oder sie folgt einer Einladung."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Das README sagt jetzt, wann hinter einem TLS-Proxy noch NEXVIEW_COOKIE_SECURE=on nötig ist."
+        ]
       }
     }
   }

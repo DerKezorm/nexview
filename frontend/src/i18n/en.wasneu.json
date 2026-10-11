@@ -667,6 +667,20 @@
           "Invitation keys are masked in the log, and mails carry a Date header again.",
           "Going back to 1.0.1 works only with the backup taken before this update, in the folder sicherungen."
         ]
+      },
+      "1.1.1": {
+        "lead": "A small repair release for signing in through Plex.",
+        "sections": [
+          {
+            "title": "Plex: only an address Plex has confirmed",
+            "where": "Sign-in page, sign in with Plex",
+            "body": "When someone signs in with Plex for the first time, Nexview could find an existing account through the e-mail address of the Plex account, even when Plex had never confirmed that address. Nexview now uses the address only when plex.tv says it is confirmed. Otherwise the sign-in goes on as if Plex had sent no address: the person signs in to their account and links Plex in the profile, or follows an invitation."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The README now says when NEXVIEW_COOKIE_SECURE=on is still needed behind a TLS proxy."
+        ]
       }
     }
   }

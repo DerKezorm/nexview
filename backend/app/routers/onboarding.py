@@ -322,6 +322,7 @@ async def change_pending_email(
         )
 
     user.email = neue
+    user.email_origin = "self"
     db.commit()
 
     zustellung = await accounts.send_verification(db, load_settings(db), user)
@@ -572,6 +573,8 @@ def set_password(raw: str, payload: SetPassword, request: Request, db: DbSession
     user.password_changed_at = utcnow()
     if token.email == user.email:
         user.email_verified = True
+        # Der Link kam an diese Adresse: jetzt ist sie in Nexview bestaetigt.
+        user.email_origin = ""
     tokens.consume(db, raw, TokenPurpose.password_reset)
     db.commit()
 
@@ -600,6 +603,7 @@ def verify_email(raw: str, request: Request, db: DbSession) -> None:
         )
 
     user.email_verified = True
+    user.email_origin = ""
     tokens.consume(db, raw, TokenPurpose.email_verification)
     db.commit()
 

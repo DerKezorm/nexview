@@ -25,7 +25,7 @@ from typing import Any
 import httpx
 
 #: Anfrageparameter, deren Wert nie ins Protokoll darf.
-SENSITIVE_QUERY = ("token", "key", "password", "secret", "code", "signature", "sig")
+SENSITIVE_QUERY = ("token", "key", "password", "secret", "code", "signature", "sig", "invite")
 
 LAUT_UND_DEUTLICH = (401, 403, 429)
 

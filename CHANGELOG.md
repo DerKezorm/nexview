@@ -37,6 +37,13 @@ tag exists for it.
 - Changing a provider's issuer drops its links; removing a provider removes its links.
 - Saving the public address asks first when a provider knows the old redirect address
   (`409 public_url_change`).
+- **A media-server sign-in no longer finds an account through an unconfirmed address.**
+  An address taken over from a sign-in provider, or typed into the profile and not yet
+  confirmed through the link in the mail, no longer links a Plex, Jellyfin or Emby sign-in
+  to that account (`409 mediaserver_link_in_profile`); sign in to the account and link the
+  media server in the profile instead. Accounts linked to a provider in 1.0.1 count as
+  having their address from the provider until it is confirmed.
+- Invitation keys in the address (`?invite=`) are masked in the log.
 
 ---
 

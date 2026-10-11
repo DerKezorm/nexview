@@ -424,6 +424,8 @@ class SqlStore:
             password_hash=unusable_password(),
             email=adresse,
             email_verified=bool(adresse) and bestaetigt,
+            # Die Adresse des Anbieters darf nie ein Konto finden (``User.email_origin``).
+            email_origin="" if bestaetigt or not adresse else "oidc",
             display_name=name,
             language=settings.default_language,
             auto_approve=False,
@@ -558,6 +560,11 @@ def nach_bauplan_wandern(engine) -> dict[str, int]:
       blieben sie stehen) kommen nicht mit: Nach dem Bauplan gehen
       Verknuepfungen mit ihrem Eintrag. ``user_oidc_links`` selbst bleibt eine
       Fassung lang unangetastet stehen.
+    * Konten mit einer Verknuepfung aus 1.0.1 (ausser dem Betreiber) bekommen
+      ``email_origin = "oidc"``: 1.0.1 uebernahm die Adresse des Anbieters,
+      und ob sie von dort kam, steht nirgends. Lieber eine Medienserver-
+      Anmeldung zu viel ins Profil schicken als eine fremde Adresse ein Konto
+      finden lassen (``User.email_origin``). Ein Link aus der Mail hebt es auf.
 
     Zurueck kommen die Zahlen fuers Protokoll.
     """
@@ -567,7 +574,7 @@ def nach_bauplan_wandern(engine) -> dict[str, int]:
     from ..crypto import decrypt
     from ..vendor.nexoidc import migrate
 
-    zahlen = {"providers": 0, "links": 0, "left": 0}
+    zahlen = {"providers": 0, "links": 0, "left": 0, "addresses": 0}
     roh = engine.raw_connection()
     try:
         verbindung = roh.driver_connection
@@ -646,6 +653,13 @@ def nach_bauplan_wandern(engine) -> dict[str, int]:
                     else:
                         # Dieselbe Kennung oder dasselbe Konto schon am Eintrag.
                         zahlen["left"] += 1
+                if "email_origin" in _spalten(cursor, "users"):
+                    cursor.execute(
+                        "UPDATE users SET email_origin = 'oidc' WHERE email IS NOT NULL "
+                        "AND email != '' AND email_origin = '' AND is_betreiber = 0 "
+                        "AND id IN (SELECT user_id FROM user_oidc_links)"
+                    )
+                    zahlen["addresses"] = cursor.rowcount
             kaputt = cursor.execute("PRAGMA foreign_key_check").fetchall()
             if kaputt:
                 raise RuntimeError(f"foreign keys broken after the sign-in migration: {kaputt[:5]}")
@@ -662,9 +676,11 @@ def nach_bauplan_wandern(engine) -> dict[str, int]:
         roh.close()
     logger.info(
         "Sign-in providers follow the shared blueprint now: %d provider(s), %d link(s) taken "
-        "over, %d link(s) without a provider left in user_oidc_links",
+        "over, %d link(s) without a provider left in user_oidc_links, %d address(es) marked as "
+        "taken from a provider",
         zahlen["providers"],
         zahlen["links"],
         zahlen["left"],
+        zahlen["addresses"],
     )
     return zahlen

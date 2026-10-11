@@ -318,6 +318,21 @@ class User(Base):
     # vor der Mailpflicht; die tragen sie beim naechsten Anmelden nach.
     email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True)
     email_verified: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Woher die Adresse kommt, solange niemand sie in Nexview bestaetigt hat.
+    # ``""``: vom Betreiber gesetzt, bei der Einrichtung, aus einer Einladung
+    # oder per Link aus der Mail bestaetigt. ``"oidc"``: vom Anmelde-Anbieter
+    # uebernommen (der Bauplan: nie ueber die Mailadresse zuordnen).
+    # ``"self"``: im Profil selbst eingetragen, noch nicht bestaetigt.
+    #
+    # ⚠️ **Nur mit ``""`` darf die Adresse ein Konto finden**
+    # (``mediaserver_accounts.resolve``, gleiche Adresse heisst verknuepfen).
+    # Sonst traegt jemand eine fremde Adresse beim Anbieter oder im Profil ein,
+    # und die erste Medienserver-Anmeldung des Opfers landet in seinem Konto.
+    # ``server_default``: Eine aeltere Fassung legt auf dieser Datenbank
+    # weiter Konten an.
+    email_origin: Mapped[str] = mapped_column(
+        String(8), default="", server_default="", nullable=False
+    )
     role: Mapped[Role] = mapped_column(enum_column(Role), default=Role.user, nullable=False)
     display_name: Mapped[str | None] = mapped_column(String(120))
     language: Mapped[str] = mapped_column(String(5), default="de", nullable=False)

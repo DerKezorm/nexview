@@ -300,12 +300,27 @@ def test_ausgenommene_dateien_gibt_es_noch() -> None:
     ⚠️ Sie schadet nicht sofort - aber wenn der Pfad spaeter wieder auftaucht,
     ist er ohne Entscheidung ausgenommen.
     """
-    verschwunden = sorted(p for p in pruefer.AUSNAHME_DATEIEN if not (WURZEL / p).exists())
+    eng = [schluessel.split("::", 1)[0] for schluessel in pruefer.AUSNAHMEN if "::" in schluessel]
+    verschwunden = sorted(
+        p for p in [*pruefer.AUSNAHME_DATEIEN, *eng] if not (WURZEL / p).exists()
+    )
     assert not verschwunden, (
         "Diese ausgenommenen Dateien gibt es nicht mehr: "
         + ", ".join(verschwunden)
         + ". Nimm den Eintrag heraus."
     )
+
+
+def test_eine_enge_ausnahme_gilt_nur_in_ihrer_datei(monkeypatch) -> None:
+    """``<pfad>::<wert>`` nimmt den Wert in genau einer Datei aus, sonst nirgends."""
+    monkeypatch.setitem(
+        pruefer.AUSNAHMEN, "ordner/erfunden.py::203.0.113.9", "erfundener Wert fuer diesen Test"
+    )
+    assert pruefer.ausgenommen("ordner/erfunden.py", "203.0.113.9")
+    assert not pruefer.ausgenommen("ordner/anders.py", "203.0.113.9")
+    assert not pruefer.ausgenommen("ordner/erfunden.py", "203.0.113.10")
+    # Die weite Form gilt weiter ueberall.
+    assert pruefer.ausgenommen("ordner/anders.py", "1.2.3.4")
 
 
 # --------------------------------------------------------------------------

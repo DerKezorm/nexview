@@ -309,6 +309,8 @@ async def change_my_email(payload: EmailChange, user: AdultUser, db: DbSession) 
     alte = user.email
     user.email = neue
     user.email_verified = False
+    # Selbst eingetragen findet sie kein Konto, bis der Link bestaetigt ist.
+    user.email_origin = "self"
     db.commit()
     db.refresh(user)
 

@@ -459,11 +459,20 @@ def test_adresse_vor_der_anmeldung_korrigieren(
     assert antwort.status_code == 200
     assert antwort.json()["sent"] is True
     assert postfach[-1]["To"] == "richtig@beispiel.de"
+    # Selbst eingetragen: findet kein Konto ueber den Medienserver, bis sie bestaetigt ist.
+    assert _herkunft("kim") == "self"
 
     # Und der Link aus der neuen Mail schaltet frei.
     roh = _token_aus(_link_aus(postfach[-1], "/bestaetigen/"))
     assert admin_client.post(f"/api/onboarding/verify/{roh}").status_code == 204
     assert auth_headers(admin_client, "kim", "passwort-1234")
+    assert _herkunft("kim") == ""
+
+
+def _herkunft(name: str) -> str:
+    with SessionLocal() as db:
+        konto = db.query(User).filter(User.username == name).one()
+        return konto.email_origin
 
 
 def test_notausgang_nur_solange_unbestaetigt(admin_client: TestClient) -> None:

@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -29,9 +30,21 @@ from oidc_contract import error_in, link_person, location, round_trip, start  # 
 from app.config import get_settings  # noqa: E402
 from app.crypto import decrypt_im_kontext, encrypt  # noqa: E402
 from app.db import SessionLocal  # noqa: E402
-from app.models import Base, OidcBlock, OidcLink, OidcProvider, Role, User  # noqa: E402
+from app.models import (  # noqa: E402
+    Base,
+    OidcBlock,
+    OidcLink,
+    OidcProvider,
+    Role,
+    TokenPurpose,
+    User,
+    utcnow,
+)
 from app.security import hash_password, unusable_password  # noqa: E402
-from app.services import anmeldebremse, oidc_store  # noqa: E402
+from app.services import anmeldebremse, oidc_store, tokens  # noqa: E402
+from app.services import mediaserver_accounts as medienserver  # noqa: E402
+from app.services.mediaserver.base import ExternalAccount  # noqa: E402
+from app.services.settings_service import load_settings  # noqa: E402
 from app.vendor import nexoidc  # noqa: E402
 from app.vendor.nexoidc import attempt, protocol, secret_context  # noqa: E402
 
@@ -142,7 +155,7 @@ def test_die_wanderung_bringt_anbieter_und_verknuepfungen_in_die_tabellen_des_ba
     alte_datenbank: Any,
 ) -> None:
     zahlen = oidc_store.nach_bauplan_wandern(alte_datenbank)
-    assert zahlen == {"providers": 2, "links": 2, "left": 1}
+    assert zahlen == {"providers": 2, "links": 2, "left": 1, "addresses": 0}
 
     with alte_datenbank.connect() as verbindung:
         spalten = {zeile[1] for zeile in verbindung.exec_driver_sql("PRAGMA table_info(oidc_providers)")}
@@ -176,14 +189,18 @@ def test_die_wanderung_bringt_anbieter_und_verknuepfungen_in_die_tabellen_des_ba
         assert verbindung.exec_driver_sql("PRAGMA foreign_keys").scalar() == 0 or True
 
     # Ein zweiter Lauf findet nichts mehr zu tun.
-    assert oidc_store.nach_bauplan_wandern(alte_datenbank) == {"providers": 0, "links": 0, "left": 0}
+    assert oidc_store.nach_bauplan_wandern(alte_datenbank) == {
+        "providers": 0, "links": 0, "left": 0, "addresses": 0
+    }
 
 
 def test_ohne_alte_tabelle_tut_die_wanderung_nichts(tmp_path: Path) -> None:
     engine = create_engine(f"sqlite:///{(tmp_path / 'neu.db').as_posix()}")
     Base.metadata.create_all(engine)
     try:
-        assert oidc_store.nach_bauplan_wandern(engine) == {"providers": 0, "links": 0, "left": 0}
+        assert oidc_store.nach_bauplan_wandern(engine) == {
+            "providers": 0, "links": 0, "left": 0, "addresses": 0
+        }
     finally:
         engine.dispose()
 
@@ -421,7 +438,7 @@ def test_auch_das_leeren_der_oeffentlichen_adresse_fragt(adapter: Adapter, sso: 
 
 
 def test_eine_adresse_die_das_modul_ablehnt_nimmt_auch_die_einstellungsseite_nicht(adapter: Adapter) -> None:
-    for falsch in ("https://nexview.example.org/?x=1", "https://user@nexview.example.org", "https://a b.org"):
+    for falsch in ("https://example.com/?x=1", "https://user@example.com", "https://a b.org"):
         antwort = adapter.save_public_url_route(falsch)
         assert antwort.status_code == 422, (falsch, antwort.text)
     assert adapter.read_public_url() == ""
@@ -543,3 +560,205 @@ def test_der_alte_rueckweg_gehoert_nur_eintraegen_die_ihn_tragen(
     assert error_in(alt) == "oidc_state_mismatch"
     with SessionLocal() as db:
         assert db.scalar(select(OidcProvider.redirect_path)) == ""
+
+
+def test_die_wanderung_markiert_adressen_verknuepfter_konten_als_vom_anbieter(alte_datenbank: Any) -> None:
+    """1.0.1 uebernahm die Adresse des Anbieters, und ob sie von dort kam, steht nirgends: Jedes Konto mit
+    einer alten Verknuepfung gilt danach als "Adresse vom Anbieter" - ausser dem Betreiber und Konten ohne Adresse."""
+    with alte_datenbank.begin() as verbindung:
+        verbindung.exec_driver_sql("UPDATE users SET email = username || '@example.com' WHERE id IN (1, 3)")
+        verbindung.exec_driver_sql("UPDATE users SET email = 'bert@example.com', is_betreiber = 1 WHERE id = 2")
+    with Session(alte_datenbank) as db:
+        db.add(User(id=4, username="dora", password_hash="x", email="dora@example.com"))
+        db.add(User(id=5, username="emil", password_hash="x"))
+        db.commit()
+    with alte_datenbank.begin() as verbindung:
+        verbindung.exec_driver_sql(
+            "INSERT INTO user_oidc_links (user_id, issuer, subject, display, linked_at) "
+            "VALUES (5, 'https://sso.example.com', 'emil-1', NULL, '2026-09-03 10:00:00')"
+        )
+    zahlen = oidc_store.nach_bauplan_wandern(alte_datenbank)
+    assert zahlen["addresses"] == 2
+    with alte_datenbank.connect() as verbindung:
+        herkunft = dict(verbindung.exec_driver_sql("SELECT username, email_origin FROM users").fetchall())
+    # anna verknuepft, cora verwaist verknuepft, bert ist der Betreiber, dora nie verknuepft, emil ohne Adresse.
+    assert herkunft == {"anna": "oidc", "bert": "", "cora": "oidc", "dora": "", "emil": ""}
+
+
+def test_die_herkunft_der_adresse_hat_einen_vorgabewert_der_datenbank(tmp_path: Path) -> None:
+    """Eine aeltere Fassung kennt ``email_origin`` nicht und legt trotzdem Konten an."""
+    engine = create_engine(f"sqlite:///{(tmp_path / 'neu.db').as_posix()}")
+    Base.metadata.create_all(engine)
+    try:
+        with engine.connect() as verbindung:
+            spalte = next(
+                zeile for zeile in verbindung.exec_driver_sql("PRAGMA table_info(users)") if zeile[1] == "email_origin"
+            )
+        assert spalte[3] == 1 and spalte[4] == "''"
+    finally:
+        engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Keine Bruecke ueber die Mailadresse: die Medienserver-Anmeldung
+# ---------------------------------------------------------------------------
+
+
+def _ueber_plex(db: Session, adresse: str) -> User:
+    konto = ExternalAccount(provider="plex", account_id="4711", username="opfer", email=adresse)
+    return medienserver.resolve(db, load_settings(db), konto)
+
+
+def test_eine_adresse_vom_anbieter_findet_kein_konto_ueber_den_medienserver() -> None:
+    """Wer beim Anbieter eine fremde Adresse traegt und ein Konto bekommt, faengt damit nicht die erste
+    Medienserver-Anmeldung des echten Besitzers ein (Bauplan: nie ueber die Mailadresse zuordnen)."""
+    with SessionLocal() as db:
+        kennung = oidc_store.SqlStore(db).create_account("angreifer", invite=None, email="opfer@example.com")
+        db.commit()
+        konto = db.get(User, kennung)
+        assert konto is not None and (konto.email, konto.email_origin) == ("opfer@example.com", "oidc")
+        with pytest.raises(medienserver.KontoFehler) as fehler:
+            _ueber_plex(db, "Opfer@Example.com")
+        assert fehler.value.code == "mediaserver_link_in_profile" and fehler.value.status_code == 409
+        db.rollback()
+        konto = db.get(User, kennung)
+        assert konto is not None and konto.mediaserver_accounts == []
+        assert db.scalar(select(User).where(User.username == "opfer")) is None
+
+
+def test_eine_selbst_eingetragene_adresse_findet_erst_nach_dem_link_ein_konto(client: Any) -> None:
+    """Auch eine im Profil eingetragene Adresse ist unbestaetigt - sonst traegt jemand, der ueber einen
+    Anbieter oder den Medienserver hereinkommt, eine fremde Adresse ein. Der Link aus der Mail hebt es auf."""
+    with SessionLocal() as db:
+        db.add(
+            User(
+                username="alex",
+                password_hash=hash_password("passwort-1234"),
+                email="alex@example.com",
+                email_verified=True,
+                role=Role.user,
+            )
+        )
+        db.commit()
+    anmeldung = client.post("/api/auth/login", json={"username": "alex", "password": "passwort-1234"})
+    assert anmeldung.status_code == 200, anmeldung.text
+    kopf = {"Authorization": f"Bearer {anmeldung.json()['access_token']}"}
+    geaendert = client.put("/api/auth/me/email", json={"email": "opfer@example.com"}, headers=kopf)
+    assert geaendert.status_code == 200, geaendert.text
+
+    with SessionLocal() as db:
+        alex = db.scalar(select(User).where(User.username == "alex"))
+        assert alex is not None and (alex.email_origin, alex.email_verified) == ("self", False)
+        with pytest.raises(medienserver.KontoFehler) as fehler:
+            _ueber_plex(db, "opfer@example.com")
+        assert fehler.value.code == "mediaserver_link_in_profile"
+        db.rollback()
+        alex = db.scalar(select(User).where(User.username == "alex"))
+        assert alex is not None
+        roh, _ = tokens.create(db, TokenPurpose.email_verification, "opfer@example.com", user=alex)
+        db.commit()
+
+    assert client.post(f"/api/onboarding/verify/{roh}").status_code == 204
+    with SessionLocal() as db:
+        alex = db.scalar(select(User).where(User.username == "alex"))
+        assert alex is not None and (alex.email_origin, alex.email_verified) == ("", True)
+        # Bestaetigt: jetzt ist es die Adresse dieses Kontos, und die Bruecke traegt wie immer.
+        assert _ueber_plex(db, "opfer@example.com").id == alex.id
+
+
+def test_der_link_zum_passwort_bestaetigt_die_adresse_vom_anbieter(client: Any) -> None:
+    """Der Link kam an diese Adresse: Danach ist sie in Nexview bestaetigt und darf ein Konto finden."""
+    with SessionLocal() as db:
+        kennung = oidc_store.SqlStore(db).create_account("alex", invite=None, email="alex@example.com")
+        db.commit()
+        alex = db.get(User, kennung)
+        assert alex is not None and alex.email_origin == "oidc"
+        roh, _ = tokens.create(db, TokenPurpose.password_reset, "alex@example.com", user=alex)
+        db.commit()
+    gesetzt = client.post(f"/api/onboarding/password/{roh}", json={"password": "neues-passwort-1234"})
+    assert gesetzt.status_code == 204, gesetzt.text
+    with SessionLocal() as db:
+        alex = db.get(User, kennung)
+        assert alex is not None and (alex.email_origin, alex.email_verified) == ("", True)
+        assert _ueber_plex(db, "alex@example.com").id == kennung
+
+
+def test_eine_vom_betreiber_gesetzte_adresse_verknuepft_wie_bisher() -> None:
+    with SessionLocal() as db:
+        db.add(User(username="bea", password_hash="x", email="bea@example.com", email_verified=False))
+        db.commit()
+        assert _ueber_plex(db, "bea@example.com").username == "bea"
+
+
+# ---------------------------------------------------------------------------
+# Was der Pruefgang ohne Test fand
+# ---------------------------------------------------------------------------
+
+
+def test_ein_anderer_administrator_loest_die_verknuepfung_des_betreibers_nicht(
+    adapter: Adapter, sso: fakes.FakeProvider
+) -> None:
+    eintrag = _anlegen(adapter, sso)
+    link_person(adapter, adapter.operator_name, "sso", sso)
+    zweit_id = adapter.make_account("zweit")
+    with SessionLocal() as db:
+        zweit = db.get(User, zweit_id)
+        assert zweit is not None
+        zweit.role = Role.admin
+        betreiber_id = db.scalar(select(User.id).where(User.is_betreiber.is_(True)))
+        db.commit()
+    zweiter = adapter.browser()
+    adapter.sign_in_with_password(zweiter, "zweit")
+    pfad = f"/api/oidc/admin/accounts/{betreiber_id}/links/{eintrag['id']}"
+
+    abgelehnt = zweiter.request("DELETE", pfad, json={"password": adapter.password_for("zweit")})
+    assert abgelehnt.status_code == 403 and adapter.error_code(abgelehnt) == "betreiber_geschuetzt"
+    with adapter.store() as store:
+        assert [link.account_id for link in store.links_of_provider(eintrag["id"])] == [betreiber_id]
+    # Er selbst darf.
+    selbst = adapter.operator().request(
+        "DELETE", pfad, json={"password": adapter.password_for(adapter.operator_name)}
+    )
+    assert selbst.status_code == 204, selbst.text
+
+
+def test_ein_passwortwechsel_macht_den_beleg_des_verknuepfens_ungueltig(
+    adapter: Adapter, sso: fakes.FakeProvider
+) -> None:
+    """Der Beleg im Cookie gilt nur, solange die Sitzung gilt: Nach einem Passwortwechsel (oder "ueberall
+    abmelden") verknuepft die Rueckkehr nichts mehr, auch wenn die Sitzung auf dem Server nicht beendet ist."""
+    eintrag = _anlegen(adapter, sso)
+    kennung = adapter.make_account("alex")
+    browser = adapter.browser()
+    adapter.sign_in_with_password(browser, "alex")
+    url = adapter.link_start(browser, "sso", adapter.password_for("alex")).json()["url"]
+    with SessionLocal() as db:
+        alex = db.get(User, kennung)
+        assert alex is not None
+        alex.password_changed_at = utcnow() + timedelta(seconds=1)
+        db.commit()
+    zurueck = oidc_contract.come_back(
+        adapter, browser, "sso", sso.authorize(url), path=oidc_contract.sent_callback(url)
+    )
+    assert error_in(zurueck) == "oidc_link_mismatch"
+    with adapter.store() as store:
+        assert store.links_of_provider(eintrag["id"]) == []
+
+
+@pytest.mark.parametrize(
+    ("gesperrt", "im_token"),
+    [
+        ("https://sso.example.com", "https://sso.example.com/"),
+        ("https://sso.example.com/", "https://sso.example.com"),
+        ("https://SSO.example.com", "https://sso.example.com"),
+    ],
+)
+def test_die_sperrliste_erkennt_den_aussteller_wie_same_issuer(gesperrt: str, im_token: str) -> None:
+    """Ein Aussteller mit oder ohne Schraegstrich am Ende (und Host in anderer Schreibung) ist derselbe;
+    ein roher Vergleich liesse ein geloeschtes Konto ueber den Anbieter wieder herein."""
+    with SessionLocal() as db:
+        db.add(OidcBlock(issuer=gesperrt, subject="person-1", display="alex"))
+        db.commit()
+        assert oidc_store.ist_gesperrt(db, im_token, "person-1")
+        assert not oidc_store.ist_gesperrt(db, im_token, "person-2")
+        assert not oidc_store.ist_gesperrt(db, "https://anders.example.com", "person-1")

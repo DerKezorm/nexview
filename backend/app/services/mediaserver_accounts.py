@@ -553,6 +553,20 @@ def resolve(db: Session, settings: AppSettings, account: ExternalAccount) -> Use
         nach_adresse = db.scalar(
             select(User).where(User.email == tokens.normalize_email(account.email))
         )
+        if nach_adresse is not None and nach_adresse.email_origin:
+            # ⚠️ **Eine Adresse, die niemand in Nexview bestaetigt hat, findet
+            # kein Konto** (``User.email_origin``). Kommt sie vom
+            # Anmelde-Anbieter oder aus dem Profil, kann sie jeder eingetragen
+            # haben - und die erste Anmeldung des echten Besitzers ueber den
+            # Medienserver landete sonst in fremdem Konto. Ein zweites Konto
+            # mit derselben Adresse geht auch nicht; der Weg ist derselbe wie
+            # ohne Adresse: anmelden wie gewohnt, dann im Profil verknuepfen.
+            raise KontoFehler(
+                "mediaserver_link_in_profile",
+                "Zu dieser Adresse gehört ein Konto, dessen Adresse nicht bestätigt ist. "
+                "Melde dich mit diesem Konto an und verknüpfe den Media-Server in deinem Profil.",
+                status_code=409,
+            )
         if nach_adresse is not None:
             # ⚠️ Nur die Verknuepfung **dieses Anbieters** steht im Weg.
             #

@@ -339,7 +339,7 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_STATIC_DIR` | Folder with the built frontend (the container sets this itself) |
 | `NEXVIEW_LOG_LEVEL` | Overrides the log level chosen in the app (`quiet`, `normal`, `detailed`, `trace`). Emergency exit for when Nexview does not start. |
 | `NEXVIEW_PORT` | Port Nexview listens on **inside the container** (default: 8000). Read by the container's start script, not by the backend itself. Only needed on host networking — see below. |
-| `NEXVIEW_CLIENT_IP` | How Nexview learns the caller's address, for rate limiting sign-ins: unset (count per account only), `direct`, `proxy`, or `proxy:2`. See below. |
+| `NEXVIEW_CLIENT_IP` | How Nexview learns the caller's address (for rate limiting sign-ins) and, behind a proxy, the scheme (`X-Forwarded-Proto`): unset (count per account only), `direct`, `proxy`, or `proxy:2`. See below. |
 | `NEXVIEW_COOKIE_SECURE` | Whether the sign-in cookie is marked `Secure`: `auto` (default), `on`, or `off`. See below. |
 | `NEXVIEW_URL_BASE` | Serve Nexview under a sub-path behind a reverse proxy, e.g. `/nexview` for `https://example.com/nexview/`. Unset means the root, exactly as before. See below. |
 | `NEXVIEW_CSP` | Content security rules: `on` (default), `report-only`, or `off`. See below. |
@@ -455,9 +455,14 @@ browser only ever sends it over HTTPS:
 > ⚠️ Do not set `on` if Nexview is meant to be reachable over `http://`. A browser throws
 > a `Secure` cookie away over plain HTTP, and nobody would be able to sign in.
 
-Nexview deliberately does **not** guess from `X-Forwarded-Proto`: that header can be
-faked just like `X-Forwarded-For`, and the same question is already answered by asking
-rather than guessing over at `NEXVIEW_CLIENT_IP`.
+`X-Forwarded-Proto` counts only when `NEXVIEW_CLIENT_IP` says a proxy is in front
+(`proxy` or `proxy:2`). The header can be faked just like `X-Forwarded-For`, so without
+that setting Nexview ignores it. With it, Nexview takes the **rightmost** value, the one
+your nearest proxy added, and with `auto` the cookie is then marked `Secure` as soon as
+that value is `https`. With `proxy:2` the rightmost value is still the nearest proxy's:
+it names the scheme the request had when it reached that proxy, not necessarily the one
+the browser used. If the outer proxy speaks HTTPS and passes plain HTTP inwards, set
+`NEXVIEW_COOKIE_SECURE=on`.
 
 The same setting governs the **short-lived cookie of a sign-in through an external
 provider**, which holds the `state`, the `nonce` and the PKCE verifier for the ten
@@ -578,8 +583,10 @@ the name. The token is used for this run only and never stored.
 > the server receives the request under another address, tell Nexview it sits behind a proxy
 > with `NEXVIEW_CLIENT_IP=proxy` (or `proxy:2` for two). That is the setting for trusted
 > proxies: with it Nexview takes the scheme from `X-Forwarded-Proto` (the rightmost value,
-> the one your own proxy added), as it already takes the address from `X-Forwarded-For`.
-> Without it the header is ignored, as before.
+> the one your nearest proxy added; with `proxy:2` that is the scheme the request had when
+> it reached that proxy). The sign-in cookie in `auto` mode then follows it and becomes
+> `Secure`, see [The sign-in cookie](#the-sign-in-cookie). Without the setting the header
+> is ignored, as before.
 
 #### Microsoft Entra ID
 

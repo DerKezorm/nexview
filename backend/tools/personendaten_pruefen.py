@@ -85,6 +85,14 @@ AUSNAHMEN = {
     "2.65.64.7": "Koordinaten in einem SVG-Pfad",
     "4.94.36.31": "Koordinaten in einem SVG-Pfad",
     "27.18.58.69": "Koordinaten in einem SVG-Pfad",
+    # ⚠️ **Eng gefasst: nur diese Datei, nur diese Zeichenfolge** (Schluessel
+    # ``<pfad>::<wert>``, siehe ``ausgenommen``). Die Datei gehoert dem
+    # gemeinsamen Anmeldemodul und darf in Nexview nicht geaendert werden
+    # (Pruefsumme). Der Eintrag entfaellt mit der naechsten Fassung des
+    # Moduls, die die Abschnittsnummer anders schreibt. Zusammengesetzt, weil
+    # die Zahl sonst hier selbst als Fund stuende.
+    "backend/app/vendor/nexoidc/protocol.py::6.2.2" + ".1":
+        "Abschnittsnummer aus RFC 3986 im Kommentar des Anmeldemoduls, keine Adresse",
 }
 
 #: Ganze Dateien, die von den Formregeln ausgenommen sind. Auch hier gilt:
@@ -379,6 +387,19 @@ def sperrlistenregel(text, sperre):
     return funde, gesehen
 
 
+def ausgenommen(rel, wert):
+    """Ob ein Fund eine Ausnahme mit Grund hat - ueberall oder nur in dieser Datei.
+
+    Ein Schluessel ``<wert>`` gilt im ganzen Repository, ein Schluessel
+    ``<pfad>::<wert>`` nur in genau dieser Datei. Die enge Form ist fuer Werte,
+    die anderswo sehr wohl eine Angabe sein koennten.
+    """
+    for schluessel in (wert, f"{rel}::{wert}"):
+        if AUSNAHMEN.get(schluessel, "").strip():
+            return True
+    return False
+
+
 def pruefen(wurzel):
     sperre = sperrliste_lesen()
     funde = []
@@ -406,7 +427,7 @@ def pruefen(wurzel):
         roh.extend(formregeln(t))
 
         for art, wert in roh:
-            if wert in AUSNAHMEN and AUSNAHMEN[wert].strip():
+            if ausgenommen(rel, wert):
                 continue
             funde.append((rel, art, wert))
 

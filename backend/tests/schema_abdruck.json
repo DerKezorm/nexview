@@ -2952,6 +2952,11 @@
         "schluessel": false,
         "typ": "VARCHAR(255)"
       },
+      "email_origin": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
       "email_verified": {
         "leer_erlaubt": false,
         "schluessel": false,

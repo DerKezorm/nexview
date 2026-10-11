@@ -570,16 +570,9 @@ function AnbieterFenster({
           checked={form.auto_create}
           onChange={(auto_create) => setzen({ auto_create })}
         />
-        <Schalter
-          label={t('oidc.admin.trustsSecondFactor')}
-          hinweis={
-            <>
-              {t('oidc.admin.trustsSecondFactorHint')} {t('anmeldung.noTwoFactor')}
-            </>
-          }
-          checked={form.trusts_second_factor}
-          onChange={(trusts_second_factor) => setzen({ trusts_second_factor })}
-        />
+        {/* Kein Schalter „Der Anbieter prüft den zweiten Faktor selbst“: Nexview hat keinen
+            eigenen zweiten Faktor (Bauplan 04, „wo die App das hat“). Der Wert bleibt an und
+            wird unverändert mitgeschickt. */}
         <details
           open={mehr || feldfehler?.feld === 'scopes'}
           onToggle={(event) => setMehr((event.target as HTMLDetailsElement).open)}

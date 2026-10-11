@@ -346,3 +346,11 @@ def test_geheimnisse_stehen_nicht_im_protokoll() -> None:
     assert "abc" not in maskiert
     assert "page=2" in maskiert
     assert "search=dune" in maskiert
+
+
+def test_der_schluessel_einer_einladung_steht_nicht_im_protokoll() -> None:
+    """``?invite=`` traegt den Schluessel aus dem Einladungslink - wer ihn hat, legt ein Konto an."""
+    maskiert = mask_query("invite=GEHEIMEREINLADUNGSKEY&next=%2Fprofil")
+
+    assert "GEHEIMEREINLADUNGSKEY" not in maskiert
+    assert maskiert == "invite=***&next=%2Fprofil"

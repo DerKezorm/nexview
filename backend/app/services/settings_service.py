@@ -1290,9 +1290,14 @@ def verbindungsbericht() -> None:
 
         settings = load_settings(db)
         if settings.mediaserver_provider or raw.get("mediaserver_machine_id"):
+            # ⚠️ **Keine Probe, nur der hinterlegte Stand.** Hier stand bis 1.1.1
+            # "connected=", und so wurde es auch gelesen: Issue #11 hielt die
+            # Zeile fuer eine Verbindungspruefung, die trotz HTTP 401 "true"
+            # meldet. Ob der Server den Zugang annimmt, fragt die
+            # Medienserver-Seite bei jedem Oeffnen (``/connection/pruefen``).
             logger.info(
                 "Media server: provider=%r name=%r machine_id=%s url=%r "
-                "token=%s -> connected=%s",
+                "token=%s -> configured=%s (stored settings, not a live check)",
                 settings.mediaserver_provider,
                 settings.mediaserver_name,
                 (settings.mediaserver_machine_id[:12] + "...")

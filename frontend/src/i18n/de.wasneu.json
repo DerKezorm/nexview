@@ -681,6 +681,27 @@
         "small": [
           "Das README sagt jetzt, wann hinter einem TLS-Proxy noch NEXVIEW_COOKIE_SECURE=on nötig ist."
         ]
+      },
+      "1.1.2": {
+        "lead": "Ein kleines Reparatur-Release: Der Umzug aus Seerr klappt wieder mit aktuellen Seerr-Versionen, und ein Jellyfin, das gerade startet, wird als Jellyfin erkannt.",
+        "sections": [
+          {
+            "title": "Umzug aus einem neueren Seerr",
+            "where": "Ersteinrichtung, Von einer laufenden Seerr-Installation",
+            "body": "Der Umzug lehnte jede Seerr-Version ab, die neuer war als die zuletzt getestete, und Seerr 3.5.0 ließ sich deshalb gar nicht übernehmen. Jetzt ist er bis Seerr 3.5.0 getestet, und eine neuere Version hält ihn nicht mehr auf: Er läuft mit einem Hinweis, der die zuletzt getestete Version nennt und um ein Issue bittet, falls etwas nicht stimmt. Geschrieben wird erst, wenn du die Vorschau gesehen hast. Abgelehnt werden nur noch Versionen vor 3.0."
+          },
+          {
+            "title": "Jellyfin beim Start",
+            "where": "Einstellungen, Dienste, Jellyfin",
+            "body": "Ein paar Sekunden nach einem Start oder Update antwortet Jellyfin 12, bevor es bereit ist. Wer genau dann verband, las, unter der Adresse gebe es keinen Jellyfin-Server. Jetzt erkennt Nexview den Server und sagt, dass er vermutlich noch startet, und du weißt: in einer Minute noch einmal."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Seerr füllt das Mailfeld von Jellyfin-Konten ohne Adresse mit dem Benutzernamen; der Umzug übernimmt diese Konten jetzt ohne Adresse statt mit einer wie alex.",
+          "Geprüft an Jellyfin 12.2.0, frisch und als Update von 10.11.11: Der hinterlegte Zugang übersteht das Update.",
+          "Die Startzeile im Protokoll zum Medienserver sagt configured= statt connected=; sie nennt den hinterlegten Stand und hat den Server nie gefragt."
+        ]
       }
     }
   }

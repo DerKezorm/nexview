@@ -681,6 +681,27 @@
         "small": [
           "The README now says when NEXVIEW_COOKIE_SECURE=on is still needed behind a TLS proxy."
         ]
+      },
+      "1.1.2": {
+        "lead": "A small repair release: migrating from Seerr works with current Seerr versions again, and a Jellyfin that is still starting is recognised as Jellyfin.",
+        "sections": [
+          {
+            "title": "Migrating from a newer Seerr",
+            "where": "First-time setup, From a running Seerr installation",
+            "body": "The migration refused every Seerr version newer than the last one it had been tested against, so Seerr 3.5.0 could not be migrated at all. It is now tested up to Seerr 3.5.0, and a newer version no longer stops it: it runs with a notice that names the last tested version and asks for an issue if something looks wrong. Nothing is written before you have seen the preview. Only versions older than 3.0 are still refused."
+          },
+          {
+            "title": "Jellyfin while it starts",
+            "where": "Settings, Services, Jellyfin",
+            "body": "For a few seconds after a start or an update, Jellyfin 12 answers before it is ready. Connecting in that moment used to say there was no Jellyfin server at the address. Nexview now recognises the server and says it is probably still starting, so you know to try again in a minute."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Seerr fills the email field of Jellyfin accounts without an address with the user name; the migration now brings those accounts over without an address instead of with one like alex.",
+          "Checked against Jellyfin 12.2.0, fresh and as an update from 10.11.11: the stored access survives the update.",
+          "The startup log line about the media server says configured= instead of connected=; it reports the stored settings and never asked the server."
+        ]
       }
     }
   }

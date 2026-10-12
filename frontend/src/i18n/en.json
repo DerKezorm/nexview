@@ -2022,6 +2022,7 @@
       "mediaserver_provider_not_linked": "That media server is not connected.",
       "mediaserver_provider_unknown": "Nexview does not know that media server.",
       "mediaserver_server_unknown": "That server is not available for your account.",
+      "mediaserver_starting": "{{service}} is not ready yet (HTTP 503). It is probably still starting; try again in a minute.",
       "mediaserver_timeout": "{{service}} is not responding (timed out).",
       "mediaserver_unknown_provider": "Nexview does not know that media server.",
       "mediaserver_would_lock_out": "Set a password first – otherwise you could not get back in.",

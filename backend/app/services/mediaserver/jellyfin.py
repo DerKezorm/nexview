@@ -19,7 +19,8 @@ nicht. Wer ueber Jellyfin hereinkommt, hat in Nexview also keine hinterlegte
 Adresse - und ohne die greift "Passwort vergessen" nicht. Das ist der Grund,
 warum das Trennen einer Verbindung vorher nachfragt, wen es aussperren wuerde.
 
-Gemessen an Jellyfin 10.11.11.
+Gemessen an Jellyfin 10.11.11, nachgemessen am 12.10.2026 an 12.2.0 (frisch
+und als Upgrade von 10.11.11; die Zugaenge ueberleben das Upgrade).
 """
 
 from __future__ import annotations
@@ -135,6 +136,20 @@ def _text_kennung(werte: dict[str, Any], name: str) -> str | None:
         if schluessel.lower() == name.lower():
             return str(wert or "").strip() or None
     return None
+
+
+def _feld(daten: Any, name: str) -> str:
+    """Ein Textfeld aus ``/System/Info/Public``, gleich wie geschrieben.
+
+    ⚠️ **Jellyfin 12 schreibt die Antwort beim Start in camelCase.** Gemessen
+    am 12.10.2026 an 12.2.0: Solange der Server startet oder seine Datenbank
+    umbaut, beantwortet ein eigener Startdienst diese eine Adresse mit ``id``
+    und ``serverName``; danach kommt wieder ``Id`` und ``ServerName``. Wer nur
+    ``Id`` las, hielt den Server in diesem Fenster fuer "kein Jellyfin".
+    """
+    if not isinstance(daten, dict):
+        return ""
+    return _text_kennung(daten, name) or ""
 
 
 def _zeitpunkt(roh: Any) -> datetime | None:
@@ -408,6 +423,21 @@ class JellyfinServer(MediaServer):
             raise MediaServerError(
                 f"Der {self.label}-Server hat die Anmeldung nicht akzeptiert.", 401
             )
+        if response.status_code == 503:
+            # ⚠️ **Beim Start antwortet Jellyfin, bevor es bereit ist.** Gemessen
+            # am 12.10.2026 an 12.2.0: Erst beantwortet ein Startdienst nur
+            # ``/System/Info/Public`` (siehe ``_feld``), danach kommt einige
+            # Sekunden lang "Jellyfin Server is loading" als HTML, beides mit
+            # 503 fuer jede andere Adresse. Eine Anmeldung in diesem Fenster
+            # meldete bisher nur "HTTP 503". Ein Proxy vor einem gestoppten
+            # Server antwortet ebenso, deshalb sagt der Text "wahrscheinlich".
+            raise MediaServerError(
+                f"Der {self.label}-Server ist noch nicht bereit (HTTP 503). "
+                "Vermutlich startet er gerade; bitte in einer Minute noch einmal versuchen.",
+                503,
+                code="mediaserver_starting",
+                service=self.label,
+            )
         if response.status_code >= 400:
             raise MediaServerError(
                 f"Der {self.label}-Server meldet einen Fehler (HTTP {response.status_code}).",
@@ -468,13 +498,13 @@ class JellyfinServer(MediaServer):
         weitere Server eines Kontos finden liessen; es *gibt* nur diesen einen.
         """
         daten = await self._anfrage("GET", "/System/Info/Public", token="") or {}
-        kennung = str(daten.get("Id") or "")
+        kennung = _feld(daten, "Id")
         if not kennung:
             raise MediaServerError(f"Unter dieser Adresse meldet sich kein {self.label}-Server.")
         return [
             ServerCandidate(
                 machine_id=kennung,
-                name=daten.get("ServerName") or "Jellyfin",
+                name=_feld(daten, "ServerName") or "Jellyfin",
                 url=self.base_url,
                 # Wer sich hier anmelden darf, benutzt diesen Server als seinen.
                 # Ein "geteilt bekommen" wie bei Plex gibt es nicht.
@@ -493,7 +523,7 @@ class JellyfinServer(MediaServer):
             daten = await self._anfrage("GET", "/System/Info/Public", token="", basis=url)
         except MediaServerError:
             return False
-        return bool(isinstance(daten, dict) and daten.get("Id"))
+        return bool(_feld(daten, "Id"))
 
     # --- Anmeldung ---------------------------------------------------------
 

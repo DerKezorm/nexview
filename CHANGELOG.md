@@ -12,6 +12,24 @@ tag exists for it.
 
 ---
 
+## 1.1.2
+
+### Fixed
+
+- **A Jellyfin that is still starting is recognised as Jellyfin.** Jellyfin 12 answers
+  for a few seconds after a start or an update before it is ready: first a startup
+  service that writes its server info in a different spelling, then "loading" pages.
+  Connecting in that window said there was no Jellyfin server at the address, or only
+  "HTTP 503". Nexview now recognises the server and says it is probably still starting.
+  Checked against Jellyfin 12.2.0, fresh and as an update from 10.11.11; the stored
+  access survives the update.
+
+### Changed
+
+- The startup log line about the media server says `configured=` instead of
+  `connected=`. It reports the stored settings and never asked the server; the live
+  check is on the media server settings page.
+
 ## 1.1.1 – 11.10.2026
 
 ### Fixed

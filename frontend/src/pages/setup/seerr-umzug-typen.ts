@@ -84,6 +84,7 @@ export type Instanz = {
 export type Vorschau = {
   fassung: string
   fassung_geprueft: boolean
+  fassung_gesperrt: boolean
   fassung_hinweis: Satz | null
   medienserver: string | null
   konten: Kontozeile[]

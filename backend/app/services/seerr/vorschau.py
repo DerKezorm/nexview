@@ -55,6 +55,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ...models import RequestStatus, Role, User
+from ..mail import valid_address
 from ..quota import UNBEGRENZT
 from .texte import Satz, satz
 
@@ -130,8 +131,20 @@ ROLLEN_BEI_FRISCHER_INSTALLATION = (Role.admin, Role.approver, Role.user)
 #: Grenze hier ausgeschrieben stehen und nicht dem Zufall ueberlassen werden.
 MINDESTFASSUNG = (3, 0, 0)
 
-#: Bis hierher geprueft. Alles Neuere fuehrt zur Weigerung, nicht zur Warnung.
-GEPRUEFT_BIS = (3, 4, 1)
+#: Bis hierher geprueft, an einer echten Installation.
+#:
+#: ⚠️ **Neueres laeuft mit Hinweis, es sperrt nicht** (Entscheidung vom 12.10.2026,
+#: Issue #12). Bis dahin weigerte sich der Umzug bei allem ueber dieser Zahl,
+#: und jedes Seerr-Release liess Leute festhaengen, bis Nexview nachzog: 3.5.0
+#: erschien einen Tag nach Nexview 1.0.0 und blieb zwei Wochen gesperrt. Der
+#: Schutz liegt jetzt in der Vorschau. Geschrieben wird erst, wenn jemand sie
+#: gesehen und bestaetigt hat, und der Hinweis bittet um ein Issue, falls
+#: etwas nicht stimmt. Gesperrt bleibt nur, was aelter als ``MINDESTFASSUNG``
+#: ist: Dort ist bekannt, dass es nicht passt.
+#:
+#: 3.5.0 gemessen am 12.10.2026 an einer Wegwerf-Instanz mit Jellyfin 12.2,
+#: drei Konten, Kontingent, Freigaberecht, Anfragen, Sperrliste und Radarr.
+GEPRUEFT_BIS = (3, 5, 0)
 
 
 def _fassung(roh: str) -> tuple[int, ...]:
@@ -228,6 +241,9 @@ class Vorschau:
     fassung: str
     fassung_geprueft: bool
     fassung_hinweis: Satz | None
+    #: Nur zu alt sperrt. Neuer oder unlesbar laeuft mit Hinweis, siehe
+    #: ``GEPRUEFT_BIS``.
+    fassung_gesperrt: bool
     medienserver: str | None
     konten: list[Kontozeile] = field(default_factory=list)
     anfragen: list[Anfragezeile] = field(default_factory=list)
@@ -427,6 +443,19 @@ KOMMT_NICHT_MIT = {
 }
 
 
+def _adresse(roh: Any) -> str | None:
+    """Seerrs ``email`` nur, wenn es wirklich eine Adresse ist.
+
+    ⚠️ **Seerr fuellt das Feld auch ohne Adresse.** Gemessen am 12.10.2026 an
+    3.5.0: Ein aus Jellyfin geholtes Konto ohne Adresse traegt dort seinen
+    Benutzernamen als ``email`` (``"alex"``). Nexview legte damit Konten mit
+    "alex" als Mailadresse an; Mails dorthin gingen ins Leere, und die Adresse
+    hielt den Platz fuer eine echte besetzt.
+    """
+    text = str(roh or "").strip()
+    return text if text and valid_address(text) else None
+
+
 def vorschau_bauen(
     *,
     status: dict[str, Any],
@@ -458,9 +487,10 @@ def vorschau_bauen(
     roh = str(status.get("version") or "")
     fassung = _fassung(roh)
     geprueft = bool(fassung) and MINDESTFASSUNG <= fassung <= GEPRUEFT_BIS
+    gesperrt = bool(fassung) and fassung < MINDESTFASSUNG
     hinweis: Satz | None = None
     if not fassung:
-        hinweis = satz("fassung_unlesbar")
+        hinweis = satz("fassung_unlesbar", geprueft=".".join(map(str, GEPRUEFT_BIS)))
     elif fassung < MINDESTFASSUNG:
         hinweis = satz(
             "fassung_zu_alt", fassung=roh, mindestens=".".join(map(str, MINDESTFASSUNG))
@@ -547,7 +577,7 @@ def vorschau_bauen(
             Kontozeile(
                 seerr_id=int(konto["id"]),
                 anzeigename=str(konto.get("displayName") or konto.get("username") or ""),
-                email=konto.get("email"),
+                email=_adresse(konto.get("email")),
                 herkunft=herkunft,
                 anbieter_kennung=kennung,
                 treffer_user_id=treffer_id,
@@ -599,6 +629,7 @@ def vorschau_bauen(
         fassung=roh,
         fassung_geprueft=geprueft,
         fassung_hinweis=hinweis,
+        fassung_gesperrt=gesperrt,
         medienserver=medienserver,
         konten=zeilen,
         anfragen=anfragezeilen,

@@ -58,7 +58,11 @@ from ..services.mediaserver.base import ExternalAccount
 from ..services.seerr import SeerrClient, SeerrFehler, Zugang, vorschau_bauen
 from ..services.seerr.texte import Satz, satz
 from ..services.seerr.uebernahme import NIE_DABEI, WAEHLBAR, bereiche_bauen
-from ..services.seerr.vorschau import ROLLEN_BEI_FRISCHER_INSTALLATION, Kontozeile
+from ..services.seerr.vorschau import (
+    MINDESTFASSUNG,
+    ROLLEN_BEI_FRISCHER_INSTALLATION,
+    Kontozeile,
+)
 from ..services.tmdb import TmdbClient, TmdbError
 from ..vendor.nexoidc import flow
 from . import oidc as oidc_router
@@ -131,9 +135,31 @@ async def pruefung(eingabe: ZugangEingabe) -> dict[str, object]:
     return {
         "version": probe.fassung,
         "geprueft": probe.fassung_geprueft,
+        "gesperrt": probe.fassung_gesperrt,
         "hinweis": probe.fassung_hinweis.als_dict() if probe.fassung_hinweis else None,
         "commit": roh.get("commitTag"),
     }
+
+
+def _zu_alt_abweisen(probe) -> None:
+    """409, wenn diese Seerr-Version aelter ist als alles Gepruefte.
+
+    Neuer oder unlesbar geht durch; der Hinweis dazu steht in der Vorschau.
+    """
+    if not probe.fassung_gesperrt:
+        return
+    raise HTTPException(
+        status.HTTP_409_CONFLICT,
+        {
+            "code": "seerr_version_too_old",
+            "message": (
+                f"Seerr {probe.fassung} ist zu alt für den Umzug. Er braucht "
+                f"mindestens Seerr {'.'.join(map(str, MINDESTFASSUNG))}."
+            ),
+            "version": probe.fassung,
+            "mindestens": ".".join(map(str, MINDESTFASSUNG)),
+        },
+    )
 
 
 def _nur_fassung(roh: dict) -> object:
@@ -158,31 +184,17 @@ def _nur_fassung(roh: dict) -> object:
 async def vorlage(eingabe: ZugangEingabe, db) -> dict:
     """Alles lesen und als Entscheidungsvorlage zurueckgeben.
 
-    ⚠️ **Weigert sich bei einer Fassung, die nicht geprueft ist**, und liest
-    die fremde Instanz dann gar nicht erst leer. Der Umzug koennte
-    weiterlaufen und wuerde vermutlich das Richtige tun. Aber wenn nicht,
-    entstehen Konten und Anfragen, die niemand mehr auseinandersortiert - und
-    Nexview kann zwei Konten nicht zusammenfuehren.
+    ⚠️ **Weigert sich nur bei einer zu alten Version**, und liest die fremde
+    Instanz dann gar nicht erst leer. Eine neuere als ``GEPRUEFT_BIS`` laeuft
+    mit Hinweis (Issue #12); der Schutz dagegen ist diese Vorschau selbst,
+    denn geschrieben wird erst nach ihr.
     """
     zugang = _zugang(eingabe)
     client = SeerrClient(zugang)
 
     try:
         roh = await client.status()
-        probe = _nur_fassung(roh)
-        if not probe.fassung_geprueft:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                {
-                    "code": "seerr_version_unknown",
-                    "message": (
-                        probe.fassung_hinweis.text
-                        if probe.fassung_hinweis
-                        else "Diese Seerr-Version ist nicht geprüft."
-                    ),
-                    "version": probe.fassung,
-                },
-            )
+        _zu_alt_abweisen(_nur_fassung(roh))
 
         einstellungen = await client.einstellungen()
         konten = await client.konten()
@@ -528,14 +540,7 @@ async def abschliessen(
     client = SeerrClient(zugang)
     try:
         roh = await client.status()
-        if not _nur_fassung(roh).fassung_geprueft:
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                {
-                    "code": "seerr_version_unknown",
-                    "message": "Diese Seerr-Version ist nicht geprüft.",
-                },
-            )
+        _zu_alt_abweisen(_nur_fassung(roh))
         einstellungen = await client.einstellungen()
         radarr = await client.radarr()
         sonarr = await client.sonarr()

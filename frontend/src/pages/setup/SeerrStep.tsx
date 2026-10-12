@@ -50,6 +50,8 @@ import { abschlussKonten, benutzernameAus, satzText, vorgabeFuer, wertText } fro
 type Pruefung = {
   version: string
   geprueft: boolean
+  /** Nur eine zu alte Version sperrt; neuere laufen mit Hinweis (Issue #12). */
+  gesperrt: boolean
   hinweis: Satz | null
   commit: string | null
 }
@@ -320,6 +322,12 @@ export function SeerrStep({ onZurueck }: { onZurueck: () => void }) {
         />
       )}
 
+      {/* Bei einer ungeprüften Version steht der Hinweis noch einmal vor dem
+          Schreiben: Der Umzug läuft, aber die Vorschau ist der Schutz. */}
+      {schritt === 'schreiben' && vorschau && !vorschau.fassung_geprueft && vorschau.fassung_hinweis && (
+        <Hinweis art="warn">{satzText(t, vorschau.fassung_hinweis)}</Hinweis>
+      )}
+
       {schritt === 'schreiben' && vorschau && besitzer !== null && (
         <Schreiben
           vorschau={vorschau}
@@ -361,7 +369,7 @@ export function SeerrStep({ onZurueck }: { onZurueck: () => void }) {
           <Button
             onClick={weiter}
             disabled={
-              (schritt === 'verbinden' && !bereit) ||
+              (schritt === 'verbinden' && (!bereit || pruefen.data?.gesperrt === true)) ||
               // ⚠️ **Ohne Besitzer geht es nicht weiter.** Einer muss die
               // Verantwortung tragen; eine Installation ohne Besitzer wäre
               // eine, die niemandem gehört.
@@ -501,7 +509,7 @@ function Verbinden({
         </Hinweis>
       )}
       {pruefen.isSuccess && (
-        <Hinweis art={pruefen.data.geprueft ? 'gut' : 'warn'}>
+        <Hinweis art={pruefen.data.geprueft ? 'gut' : pruefen.data.gesperrt ? 'fehler' : 'warn'}>
           {pruefen.data.geprueft
             ? t('settings.seerr.checkOk', { version: pruefen.data.version })
             : pruefen.data.hinweis && satzText(t, pruefen.data.hinweis)}

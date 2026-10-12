@@ -23,6 +23,17 @@ tag exists for it.
   "HTTP 503". Nexview now recognises the server and says it is probably still starting.
   Checked against Jellyfin 12.2.0, fresh and as an update from 10.11.11; the stored
   access survives the update.
+- **Migrating from Seerr no longer stops at a newer Seerr version** (#12). The
+  migration refused every Seerr version newer than the last one it had been tested
+  against, so Seerr 3.5.0 could not be migrated at all, and "Read it" only showed the
+  same screen again. A newer version now runs with a notice that names the last tested
+  version and asks for an issue if something looks wrong; nothing is written before
+  you have seen the preview. Only versions older than 3.0 are still refused. Tested
+  up to Seerr 3.5.0.
+- **Migrating from Seerr no longer takes a user name for an email address.** Seerr
+  fills the email field of Jellyfin accounts without an address with the user name.
+  Nexview used to create those accounts with addresses like `alex`; they now come
+  without an address, like any Jellyfin account.
 
 ### Changed
 

@@ -29,13 +29,19 @@ from typing import Any
 #: Der deutsche Wortlaut je Kennung. Platzhalter in ``str.format``-Schreibweise.
 VORLAGEN: dict[str, str] = {
     # ---- Fassung ----------------------------------------------------------
-    "fassung_unlesbar": "Diese Installation nennt keine brauchbare Fassung.",
+    "fassung_unlesbar": (
+        "Diese Installation nennt keine lesbare Version. Der Umzug ist bis Seerr "
+        "{geprueft} getestet und läuft trotzdem; sieh dir die Vorschau genau an. "
+        "Stimmt etwas nicht, mach bitte ein Issue auf: "
+        "https://github.com/DerKezorm/nexview/issues"
+    ),
     "fassung_zu_alt": (
-        "Seerr {fassung} ist älter als die älteste geprüfte Fassung {mindestens}."
+        "Seerr {fassung} ist älter als die älteste geprüfte Version {mindestens}."
     ),
     "fassung_zu_neu": (
-        "Seerr {fassung} ist neuer als alles, wogegen dieser Umzug geprüft wurde "
-        "({geprueft})."
+        "Der Umzug ist bis Seerr {geprueft} getestet, hier läuft {fassung}. Er sollte "
+        "trotzdem funktionieren; sieh dir die Vorschau genau an. Stimmt etwas nicht, "
+        "mach bitte ein Issue auf: https://github.com/DerKezorm/nexview/issues"
     ),
     # ---- Rollen -----------------------------------------------------------
     "rolle_verlust_teilweise": (

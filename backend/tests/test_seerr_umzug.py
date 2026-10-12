@@ -479,15 +479,36 @@ def test_geprueft_bis_wird_eingehalten() -> None:
     assert _bauen(status={"version": "3.4.1"}).fassung_geprueft is True
 
 
-def test_neuere_fassung_gilt_als_ungeprueft() -> None:
-    """Ein Abbruch kostet zehn Minuten, das andere kostet den Bestand."""
+def test_neuere_fassung_gilt_als_ungeprueft_sperrt_aber_nicht() -> None:
+    """Issue #12: Jedes Seerr-Release liess Leute festhaengen, bis Nexview nachzog."""
     ergebnis = _bauen(status={"version": "3.9.0"})
     assert ergebnis.fassung_geprueft is False
-    assert ergebnis.fassung_hinweis
+    assert ergebnis.fassung_gesperrt is False
+    assert ergebnis.fassung_hinweis is not None
+    assert ergebnis.fassung_hinweis.kennung == "fassung_zu_neu"
+    assert "issues" in ergebnis.fassung_hinweis.text
 
 
-def test_unlesbare_fassung_gilt_als_ungeprueft() -> None:
-    assert _bauen(status={"version": "irgendwas"}).fassung_geprueft is False
+def test_unlesbare_fassung_gilt_als_ungeprueft_sperrt_aber_nicht() -> None:
+    ergebnis = _bauen(status={"version": "irgendwas"})
+    assert ergebnis.fassung_geprueft is False
+    assert ergebnis.fassung_gesperrt is False
+
+
+def test_benutzername_im_mailfeld_ist_keine_adresse() -> None:
+    """Gemessen an Seerr 3.5.0: Jellyfin-Konten ohne Adresse tragen ihren Namen als ``email``."""
+    ohne = {**_konto(2, name="alex", art=3, plex_id=None, jellyfin="j-2"), "email": "alex"}
+    mit = _konto(3, name="kim", art=3, plex_id=None, jellyfin="j-3")
+    zeilen = {z.seerr_id: z for z in _bauen(konten=[ohne, mit]).konten}
+    assert zeilen[2].email is None
+    assert zeilen[3].email == "kim@example.com"
+
+
+def test_zu_alte_fassung_sperrt() -> None:
+    """Vor 3.0 hiess die Sperrliste anders; dort ist bekannt, dass es nicht passt."""
+    ergebnis = _bauen(status={"version": "2.7.3"})
+    assert ergebnis.fassung_geprueft is False
+    assert ergebnis.fassung_gesperrt is True
 
 
 # --------------------------------------------------------------------------
@@ -645,21 +666,54 @@ def test_pruefen_faellt_auf_einen_falschen_schluessel_herein_nicht(
     )
 
 
-def test_vorschau_weigert_sich_bei_unbekannter_fassung(
+def test_vorschau_weigert_sich_bei_zu_alter_fassung(
     client: TestClient, seerr_attrappe
 ) -> None:
     """Und liest die fremde Instanz dann gar nicht erst leer."""
     gesehen: list[str] = []
-    seerr_attrappe({"/api/v1/status": {"version": "9.9.9"}}, spur=gesehen)
+    seerr_attrappe({"/api/v1/status": {"version": "2.7.3"}}, spur=gesehen)
     antwort = client.post(
         "/api/setup/seerr/vorschau",
         json={"url": ADRESSE, "api_key": "geheim-im-test"},
     )
     assert antwort.status_code == 409
-    assert antwort.json()["detail"]["code"] == "seerr_version_unknown"
+    assert antwort.json()["detail"]["code"] == "seerr_version_too_old"
+    assert antwort.json()["detail"]["mindestens"] == "3.0.0"
     assert gesehen == ["/api/v1/status"], (
         "Wer sich weigert, soll die fremde Instanz nicht vorher leerlesen."
     )
+
+
+def test_pruefung_meldet_eine_neuere_fassung_als_hinweis(
+    client: TestClient, seerr_attrappe
+) -> None:
+    """Issue #12: Die Pruefung warnt, der Knopf zur Vorschau bleibt offen."""
+    seerr_attrappe({"/api/v1/status": {"version": "9.9.9"}, "/api/v1/settings/main": {}})
+    antwort = client.post(
+        "/api/setup/seerr/pruefen",
+        json={"url": ADRESSE, "api_key": "geheim-im-test"},
+    )
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert (daten["geprueft"], daten["gesperrt"]) == (False, False)
+    assert daten["hinweis"]["kennung"] == "fassung_zu_neu"
+
+
+def test_vorschau_laeuft_bei_neuerer_fassung_mit_hinweis(
+    client: TestClient, seerr_attrappe
+) -> None:
+    """Issue #12: Seerr 3.5.0 sperrte den Umzug, bis Nexview nachzog."""
+    seerr_attrappe({**_volle_attrappe(), "/api/v1/status": {"version": "9.9.9"}})
+    antwort = client.post(
+        "/api/setup/seerr/vorschau",
+        json={"url": ADRESSE, "api_key": "geheim-im-test"},
+    )
+    assert antwort.status_code == 200, antwort.text
+    daten = antwort.json()
+    assert daten["fassung_geprueft"] is False
+    assert daten["fassung_gesperrt"] is False
+    assert daten["fassung_hinweis"]["kennung"] == "fassung_zu_neu"
+    assert len(daten["konten"]) == 3
 
 
 def test_vorschau_schreibt_nichts(client: TestClient, seerr_attrappe) -> None:
@@ -1160,6 +1214,31 @@ def _konten_in_der_datenbank() -> dict[str, object]:
             "gesperrt": sitzung.query(Blocked).count(),
             "kanaele": sitzung.query(ChannelTarget).count(),
         }
+
+
+def test_abschliessen_laeuft_bei_neuerer_fassung(client: TestClient, seerr_attrappe) -> None:
+    """Issue #12: Wer die Vorschau gesehen hat, darf auch schreiben."""
+    seerr_attrappe({**_volle_attrappe(), "/api/v1/status": {"version": "9.9.9"}})
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(bereiche=["radarr"], konten=[{"seerr_id": 3}]),
+    )
+    assert antwort.status_code == 201, antwort.text
+    assert set(_konten_in_der_datenbank()["konten"]) == {"chefin", "robin-privat"}
+
+
+def test_abschliessen_weigert_sich_bei_zu_alter_fassung(
+    client: TestClient, seerr_attrappe
+) -> None:
+    """Und schreibt dann nichts, auch nicht den Besitzer."""
+    seerr_attrappe({**_volle_attrappe(), "/api/v1/status": {"version": "2.7.3"}})
+    antwort = client.post(
+        "/api/setup/seerr/abschliessen",
+        json=_abschluss_rumpf(bereiche=["radarr"], konten=[{"seerr_id": 3}]),
+    )
+    assert antwort.status_code == 409
+    assert antwort.json()["detail"]["code"] == "seerr_version_too_old"
+    assert _konten_in_der_datenbank()["konten"] == {}
 
 
 def test_abschliessen_schreibt_alles_in_einem_zug(client: TestClient, seerr_attrappe) -> None:

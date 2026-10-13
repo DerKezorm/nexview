@@ -95,28 +95,47 @@ test('33: sign-in through the provider button ends in a session', async ({ page,
   })
   expect(angelegt.status(), await angelegt.text()).toBe(201)
 
-  // Das Konto verknüpft sich selbst: Mein Konto, Sicherheit, „Verknüpfen“ mit dem Passwort.
-  await signInAsOperator(page)
-  await page.goto('/profil?reiter=sicherheit')
-  const zeile = page.getByTestId('meine-anbieter').getByRole('listitem').filter({ hasText: 'Stand-in' })
-  await expect(zeile.getByText('Not linked')).toBeVisible()
-  await zeile.getByRole('button', { name: 'Link' }).click()
-  await page.getByRole('dialog').getByLabel('Your password').fill(KONTO.password)
-  await page.getByRole('dialog').getByRole('button', { name: 'Link' }).click()
-  await expect(page.getByText(/Linked to Stand-in/)).toBeVisible()
-  await expect(zeile.getByText('Linked', { exact: true })).toBeVisible()
+  try {
+    // Das Konto verknüpft sich selbst: Mein Konto, Sicherheit, „Verknüpfen“ mit dem Passwort.
+    await signInAsOperator(page)
+    await page.goto('/profil?reiter=sicherheit')
+    const zeile = page.getByTestId('meine-anbieter').getByRole('listitem').filter({ hasText: 'Stand-in' })
+    await expect(zeile.getByText('Not linked')).toBeVisible()
+    await zeile.getByRole('button', { name: 'Link' }).click()
+    await page.getByRole('dialog').getByLabel('Your password').fill(KONTO.password)
+    await page.getByRole('dialog').getByRole('button', { name: 'Link' }).click()
+    await expect(page.getByText(/Linked to Stand-in/)).toBeVisible()
+    await expect(zeile.getByText('Linked', { exact: true })).toBeVisible()
 
-  // Abmelden, dann über den Knopf auf der Anmeldeseite wieder hinein.
-  await page.getByRole('button', { name: KONTO.username, exact: true }).click()
-  await page.getByRole('menuitem', { name: 'Sign out' }).click()
-  await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: /Sign in with|Mit .* anmelden/ }).first().click()
-  await expect(page.getByRole('link', { name: 'Browse', exact: true }).first()).toBeVisible()
-  await expect(page).not.toHaveURL(/error=/)
+    // ⚠️ Das Abmelden kommt erst beim Server an, wenn der Anbieter zurückgeleitet hat (spätestens nach zwei
+    // Sekunden). So lief es am 13.10.2026 in CI von selbst: Die Antwort des Abmeldens löschte das Cookie der neuen
+    // Sitzung, und der Browser stand wieder auf der Anmeldeseite. Wartet der Knopf, kommt es nie so weit.
+    let losLassen: () => void = () => {}
+    const gehalten = new Promise<void>((fertig) => (losLassen = fertig))
+    page.on('response', (antwort) => {
+      if (antwort.url().includes('/api/oidc/stand-in/callback')) losLassen()
+    })
+    await page.route('**/api/auth/logout', async (route) => {
+      await Promise.race([gehalten, new Promise((fertig) => setTimeout(fertig, 2000))])
+      await route.continue()
+    })
 
-  // Aufräumen für die übrigen Specs: der Anbieter geht samt Verknüpfung.
-  const liste = await request.get('/api/oidc/admin/providers', { headers: kopf })
-  for (const eintrag of (await liste.json()) as { id: number }[]) {
-    await request.delete(`/api/oidc/admin/providers/${eintrag.id}`, { headers: kopf })
+    // Abmelden, dann über den Knopf auf der Anmeldeseite wieder hinein.
+    await page.getByRole('button', { name: KONTO.username, exact: true }).click()
+    await page.getByRole('menuitem', { name: 'Sign out' }).click()
+    await expect(page.getByRole('button', { name: 'Sign in', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: /Sign in with|Mit .* anmelden/ }).first().click()
+    await expect(page.getByRole('link', { name: 'Browse', exact: true }).first()).toBeVisible()
+    await expect(page).not.toHaveURL(/error=/)
+    // Und die Sitzung steckt im Cookie, nicht nur im Arbeitsspeicher.
+    await page.reload()
+    await expect(page.getByRole('link', { name: 'Browse', exact: true }).first()).toBeVisible()
+  } finally {
+    // Aufräumen für die übrigen Specs, auch nach einem Fehlschlag: Sonst steht der Anbieter in allen weiteren, und
+    // ihr „Sign in“ trifft zwei Knöpfe. Der Anbieter geht samt Verknüpfung.
+    const liste = await request.get('/api/oidc/admin/providers', { headers: kopf })
+    for (const eintrag of (await liste.json()) as { id: number }[]) {
+      await request.delete(`/api/oidc/admin/providers/${eintrag.id}`, { headers: kopf })
+    }
   }
 })

@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.1.3
+
+### Fixed
+
+- **Signing in right after signing out keeps the new session.** Whoever signed out and
+  at once signed in again, through a provider button or with a password, could land
+  back on the sign-in page although the sign-in had worked: the answer to the sign-out
+  arrived late and took the new session's cookie with it. A new sign-in now waits until
+  the sign-out is through, five seconds at most.
+
 ## 1.1.2 – 12.10.2026
 
 ### Fixed

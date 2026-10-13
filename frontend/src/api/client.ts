@@ -89,15 +89,58 @@ export function clearTokens(): void {
   accessToken = null
 }
 
+/**
+ * Das Abmelden, solange der Server noch nicht geantwortet hat.
+ *
+ * ⚠️ Seine Antwort loescht das Cookie, und zwar das, das der Browser **dann**
+ * hat. Kommt sie erst an, nachdem eine neue Anmeldung ihr Cookie gesetzt hat,
+ * ist die neue Sitzung weg: Die Oberflaeche zeigt wieder die Anmeldeseite,
+ * obwohl der Server die Anmeldung angenommen hat. Gesehen am 13.10.2026 im
+ * Ende-zu-Ende-Test (Abmelden, sofort „Mit … anmelden“). Darum wartet jede
+ * Anfrage und jeder Sprung zum Anbieter, bis das Abmelden durch ist.
+ */
+let laufendeAbmeldung: Promise<void> | null = null
+
+/** So lange wartet eine neue Anmeldung hoechstens auf ein haengendes Abmelden. */
+const ABMELDUNG_HOECHSTENS_MS = 5000
+
 /** Abmelden: der Server nimmt das Cookie weg. */
 export async function logout(): Promise<void> {
   accessToken = null
+  const abmeldung = (async () => {
+    try {
+      await fetch(mitBasis('/api/auth/logout'), { method: 'POST', credentials: 'same-origin' })
+    } catch {
+      // Server nicht erreichbar. Der Arbeitsspeicher ist trotzdem leer, und
+      // beim naechsten Versuch faellt das Cookie ohnehin auf.
+    }
+  })()
+  laufendeAbmeldung = abmeldung
   try {
-    await fetch(mitBasis('/api/auth/logout'), { method: 'POST', credentials: 'same-origin' })
-  } catch {
-    // Server nicht erreichbar. Der Arbeitsspeicher ist trotzdem leer, und
-    // beim naechsten Versuch faellt das Cookie ohnehin auf.
+    await abmeldung
+  } finally {
+    if (laufendeAbmeldung === abmeldung) laufendeAbmeldung = null
   }
+}
+
+/**
+ * Warten, bis ein laufendes Abmelden beim Server durch ist.
+ *
+ * Fuer alles, was danach eine Sitzung beginnen kann: jede Anfrage und der Sprung
+ * zum Anmelde-Anbieter, der kein `fetch` ist. Antwortet der Server nicht, geht
+ * es nach `ABMELDUNG_HOECHSTENS_MS` trotzdem weiter.
+ */
+export async function abmeldungAbwarten(): Promise<void> {
+  const abmeldung = laufendeAbmeldung
+  if (!abmeldung) return
+  let uhr: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    abmeldung,
+    new Promise<void>((fertig) => {
+      uhr = setTimeout(fertig, ABMELDUNG_HOECHSTENS_MS)
+    }),
+  ])
+  clearTimeout(uhr)
 }
 
 /** Wird aufgerufen, wenn die Sitzung endgueltig abgelaufen ist. */
@@ -226,6 +269,7 @@ async function refreshAccessToken(): Promise<boolean> {
 
   laufendeErneuerung = (async () => {
     try {
+      await abmeldungAbwarten()
       // Das Erneuerungs-Token faehrt als Cookie mit - es steht nirgends im
       // Code, weil dieses Skript es gar nicht sehen darf.
       const response = await fetch(mitBasis('/api/auth/refresh'), {
@@ -258,6 +302,9 @@ type RequestOptions = {
 
 async function send<T>(path: string, options: RequestOptions, retry: boolean): Promise<T> {
   const { method = 'GET', body, auth = true } = options
+  // Eine Anmeldung direkt nach dem Abmelden bekaeme sonst ihr Cookie
+  // nachtraeglich geloescht (siehe `laufendeAbmeldung`).
+  await abmeldungAbwarten()
   const headers: Record<string, string> = {}
 
   // Bei FormData (Datei-Upload) setzt der Browser die Kopfzeile selbst -

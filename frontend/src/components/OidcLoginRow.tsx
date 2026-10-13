@@ -20,7 +20,7 @@
 import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 
-import { api } from '../api/client'
+import { abmeldungAbwarten, api } from '../api/client'
 import type { OidcKnopf } from '../api/types'
 import { mitBasis } from '../lib/basis'
 import { Button } from './ui'
@@ -71,7 +71,10 @@ export function OidcLoginRow({
             key={eintrag.slug}
             variant="ghost"
             className="w-full"
-            onClick={() => {
+            onClick={async () => {
+              // Wer sich eben abgemeldet hat: erst dessen Antwort, sonst löscht
+              // sie das Cookie, das der Rückweg vom Anbieter setzt.
+              await abmeldungAbwarten()
               window.location.href = startAdresse(eintrag.slug, invite)
             }}
           >

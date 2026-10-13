@@ -18,6 +18,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import i18n from '../i18n'
 import {
   ApiError,
+  abmeldungAbwarten,
   api,
   clearTokens,
   gespeicherterFehler,
@@ -129,6 +130,50 @@ describe('Abmelden', () => {
     // Darf nicht werfen: Der Arbeitsspeicher ist danach trotzdem leer, und
     // beim nächsten Versuch fällt das Cookie ohnehin auf.
     await expect(logout()).resolves.toBeUndefined()
+  })
+
+  // ⚠️ Die Antwort des Abmeldens löscht das Cookie, das der Browser dann hat.
+  // Ging die neue Anmeldung schon vorher los, war ihre Sitzung danach weg
+  // (Ende-zu-Ende-Test 33, 13.10.2026).
+  it('lässt die nächste Anfrage warten, bis der Server das Abmelden bestätigt hat', async () => {
+    let bestaetigen: (r: Response) => void = () => {}
+    holen.mockReturnValueOnce(new Promise<Response>((fertig) => (bestaetigen = fertig)))
+    holen.mockResolvedValueOnce(antwort(200, { access_token: 'neu', token_type: 'bearer', expires_in: 60 }))
+
+    const abmelden = logout()
+    const anmelden = api.post('/api/auth/login', { username: 'a', password: 'b' }, { auth: false })
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(holen).toHaveBeenCalledTimes(1)
+
+    bestaetigen(antwort(204))
+    await abmelden
+    await anmelden
+    expect(holen).toHaveBeenCalledTimes(2)
+    expect(holen.mock.calls[1][0]).toBe('/api/auth/login')
+  })
+
+  it('wartet auf ein hängendes Abmelden höchstens fünf Sekunden', async () => {
+    vi.useFakeTimers()
+    let spaeter: (r: Response) => void = () => {}
+    const abmelden = (() => {
+      holen.mockReturnValueOnce(new Promise<Response>((fertig) => (spaeter = fertig)))
+      return logout()
+    })()
+    try {
+      let fertig = false
+      const danach = abmeldungAbwarten().then(() => (fertig = true))
+      await vi.advanceTimersByTimeAsync(4900)
+      expect(fertig).toBe(false)
+      await vi.advanceTimersByTimeAsync(200)
+      await danach
+      expect(fertig).toBe(true)
+    } finally {
+      // Sonst hinge das Abmelden in jeden folgenden Test hinein.
+      spaeter(antwort(204))
+      await abmelden
+      vi.useRealTimers()
+    }
   })
 })
 

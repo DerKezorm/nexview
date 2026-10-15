@@ -702,6 +702,21 @@
           "Checked against Jellyfin 12.2.0, fresh and as an update from 10.11.11: the stored access survives the update.",
           "The startup log line about the media server says configured= instead of connected=; it reports the stored settings and never asked the server."
         ]
+      },
+      "1.2.0": {
+        "lead": "Every card now shows only what you care about. With several versions set up, every poster carried a badge for each of them, even where nothing was requested. Out of the box a card now shows the status of the main version only, and every account chooses which other versions it wants to see.",
+        "sections": [
+          {
+            "title": "Versions on cards",
+            "where": "Profile, Account, Profile, Versions on cards",
+            "body": "With HD, 4K, Cartoon and Kids, every card in Discover, Search and lists carried three badges, most of them saying “not requested yet”. Now you tick in your profile which versions get a badge of their own; 4K for movies and for series is one tick. Below that you choose when: only when something is requested or available there, or always. The setting applies to your account only. The title page still lists every version with its status."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Signing out and straight back in could land you on the sign-in page again although the sign-in had worked. A new sign-in now waits until the sign-out is through.",
+          "Signing out and reloading or closing the tab straight away left you signed in. The sign-in page now appears only once the server has confirmed the sign-out."
+        ]
       }
     }
   }

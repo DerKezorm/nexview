@@ -595,6 +595,10 @@ def test_eine_aeltere_fassung_verweigert_den_start(alte_installation: Path) -> N
     """
     from app import __version__
 
+    # Aus der eigenen abgeleitet: Hier stand fest "1.2.0", und mit Nexview
+    # 1.2.0 war das keine spaetere Fassung mehr.
+    spaeter = f"{int(__version__.split('.')[0]) + 1}.0.0"
+
     db_modul.init_db()
     assert _merker(alte_installation) == db_modul._fassungszahl(__version__)
     rueckweg = next((alte_installation.parent / "sicherungen").glob("*.db"))
@@ -602,7 +606,7 @@ def test_eine_aeltere_fassung_verweigert_den_start(alte_installation: Path) -> N
     # Eine spaetere Fassung ist hier gelaufen.
     neuer = create_engine(f"sqlite:///{alte_installation}")
     with neuer.begin() as verbindung:
-        verbindung.exec_driver_sql(f"PRAGMA user_version = {db_modul._fassungszahl('1.2.0')}")
+        verbindung.exec_driver_sql(f"PRAGMA user_version = {db_modul._fassungszahl(spaeter)}")
     neuer.dispose()
     buch_vorher = _buch(alte_installation)
 
@@ -610,12 +614,12 @@ def test_eine_aeltere_fassung_verweigert_den_start(alte_installation: Path) -> N
         db_modul.init_db()
 
     meldung = str(abbruch.value)
-    assert "1.2.0" in meldung
+    assert spaeter in meldung
     assert __version__ in meldung
     assert rueckweg.name in meldung
     # Nichts angefasst: weder Buch noch Merker noch eine neue Sicherung.
     assert _buch(alte_installation) == buch_vorher
-    assert _merker(alte_installation) == db_modul._fassungszahl("1.2.0")
+    assert _merker(alte_installation) == db_modul._fassungszahl(spaeter)
     assert len(list((alte_installation.parent / "sicherungen").glob("*.db"))) == 1
 
 

@@ -702,6 +702,21 @@
           "Geprüft an Jellyfin 12.2.0, frisch und als Update von 10.11.11: Der hinterlegte Zugang übersteht das Update.",
           "Die Startzeile im Protokoll zum Medienserver sagt configured= statt connected=; sie nennt den hinterlegten Stand und hat den Server nie gefragt."
         ]
+      },
+      "1.2.0": {
+        "lead": "Jede Kachel zeigt ab jetzt nur, was dich interessiert. Wer mehrere Fassungen eingerichtet hat, sah auf jedem Poster ein Abzeichen je Fassung, auch dort, wo nichts angefragt war. Ab Werk steht dort jetzt nur noch der Zustand der Hauptfassung, und jedes Konto wählt selbst, welche Fassungen es zusätzlich sehen will.",
+        "sections": [
+          {
+            "title": "Fassungen auf Kacheln",
+            "where": "Profil, Konto, Profil, Fassungen auf Kacheln",
+            "body": "Mit HD, 4K, Cartoon und Kids standen bisher drei Abzeichen auf jeder Kachel in Entdecken, Suche und Listen, meist mit „noch nicht angefragt“. Jetzt hakst du im Profil an, welche Fassungen ein eigenes Abzeichen bekommen; 4K der Filme und der Serien ist dabei ein Haken. Darunter entscheidest du, wann: nur wenn dort etwas angefragt ist oder vorliegt, oder immer. Die Einstellung gilt nur für dein Konto. Die Titelseite zeigt weiterhin alle Fassungen samt Zustand."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Wer sich abmeldete und sofort wieder anmeldete, landete manchmal trotz gelungener Anmeldung wieder auf der Anmeldeseite. Eine neue Anmeldung wartet jetzt, bis die Abmeldung durch ist.",
+          "Wer sich abmeldete und sofort neu lud oder den Tab schloss, war danach wieder angemeldet. Die Anmeldeseite erscheint jetzt erst, wenn der Server die Abmeldung bestätigt hat."
+        ]
       }
     }
   }

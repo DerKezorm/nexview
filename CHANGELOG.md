@@ -12,7 +12,7 @@ tag exists for it.
 
 ---
 
-## 1.2.0
+## 1.2.0 – 15.10.2026
 
 ### Added
 
@@ -31,6 +31,10 @@ tag exists for it.
   back on the sign-in page although the sign-in had worked: the answer to the sign-out
   arrived late and took the new session's cookie with it. A new sign-in now waits until
   the sign-out is through, five seconds at most.
+- **Reloading right after signing out stays signed out.** The sign-in page appeared
+  before the server had confirmed the sign-out. Whoever reloaded or closed the tab in that
+  moment cut the sign-out short, the session cookie stayed, and the reload was signed in
+  again. The sign-in page now waits for the server's answer, five seconds at most.
 
 ## 1.1.2 – 12.10.2026
 

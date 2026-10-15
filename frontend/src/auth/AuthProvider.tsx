@@ -5,6 +5,7 @@ import type { ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 
 import {
+  abmeldungAbwarten,
   api,
   logout as sitzungBeenden,
   restoreSession,
@@ -59,11 +60,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // ⚠️ Der Server muss mit: Die Sitzung haengt seit 0.21 an einem
     // HttpOnly-Cookie, das dieses Skript nicht loeschen kann. Wer nur den
     // Arbeitsspeicher leert, ist beim naechsten Neuladen wieder angemeldet.
-    // Die Oberflaeche wartet trotzdem nicht darauf - abgemeldet ist man
-    // sofort, das Cookie faellt eine Anfrage spaeter.
+    //
+    // ⚠️ **Die Anmeldeseite erst, wenn der Server geantwortet hat**
+    // (hoechstens `ABMELDUNG_HOECHSTENS_MS`). Bis 1.1.2 erschien sie sofort,
+    // und wer gleich danach neu lud oder den Tab schloss, brach das Abmelden
+    // ab: Das Cookie blieb, und das Neuladen war wieder angemeldet. Gemessen
+    // am 15.10.2026 im Ende-zu-Ende-Test, lokal in 5 von 10 Laeufen.
     void sitzungBeenden()
-    setUser(null)
-    forgetCachedData()
+    void abmeldungAbwarten().then(() => {
+      setUser(null)
+      forgetCachedData()
+    })
   }, [forgetCachedData])
 
   // Beim Start: Ist die Einrichtung nötig? Und lässt sich eine alte Sitzung fortsetzen?

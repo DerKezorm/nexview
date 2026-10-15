@@ -623,7 +623,8 @@ TEXTE: dict[str, tuple[str, str]] = {
     'PATCH /api/auth/me': (
         'Change your own account',
         (
-            'Display name, language, region, theme and notification preferences. The '
+            'Display name, language, region, theme, the versions shown on cards '
+            '(card_versions, card_versions_always) and notification preferences. The '
             'username is not among them: it appears in requests, approvals and the '
             'Radarr/Sonarr labels, and changing it afterwards would tear those traces '
             'apart.'

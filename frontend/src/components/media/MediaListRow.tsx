@@ -11,6 +11,7 @@ import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
 import { FassungBadge } from './FassungBadge'
+import { useKachelFassungen } from './useKachelFassungen'
 import { WatchedBadge } from './WatchedBadge'
 
 type MediaListRowProps = {
@@ -39,6 +40,7 @@ export function MediaListRow({
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
   const anfragbar = darfAnfragen(item.status)
+  const kachelFassungen = useKachelFassungen(item.fassungen)
 
   return (
     <div className="group flex w-full items-stretch gap-4 rounded-xl border border-ink-700 bg-ink-850 p-3 transition-colors hover:border-accent-600/60 hover:bg-ink-800">
@@ -81,11 +83,9 @@ export function MediaListRow({
       <div className="flex shrink-0 flex-col items-end justify-between gap-3">
         <span className="flex flex-wrap items-center justify-end gap-1.5">
           <StatusBadge status={item.status} />
-          {(item.fassungen ?? [])
-            .filter((f) => !f.haupt)
-            .map((f) => (
-              <FassungBadge key={f.kennung} fassung={f} kompakt />
-            ))}
+          {kachelFassungen.map((f) => (
+            <FassungBadge key={f.kennung} fassung={f} kompakt />
+          ))}
         </span>
 
         <div className="flex items-center gap-2">

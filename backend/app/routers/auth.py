@@ -243,6 +243,14 @@ def update_me(payload: ProfileUpdate, user: CurrentUser, db: DbSession) -> User:
                 ),
             )
         user.theme = payload.theme
+    if payload.card_versions is not None:
+        # Doppelte und leere fallen weg. Ob es die Kennung gibt, prueft hier
+        # niemand: Eine Fassung kann spaeter verschwinden, dann steht ihre
+        # Kennung folgenlos da, und taucht sie wieder auf, gilt der Haken.
+        kennungen = [k.strip()[:64] for k in payload.card_versions]
+        user.card_versions = list(dict.fromkeys(k for k in kennungen if k))
+    if payload.card_versions_always is not None:
+        user.card_versions_always = payload.card_versions_always
 
     # ⚠️ **Abgeleitet, nicht aufgezaehlt - und das ist die Lehre aus einem
     # Fehler.** Hier stand eine Liste von Hand. Als spaeter ``mail_storage``

@@ -17,6 +17,14 @@ export type User = {
   language: string;
   /** 'dark' oder 'light' - siehe lib/theme.ts. */
   theme: string;
+  /**
+   * Kennungen der weiteren Fassungen, die Kacheln und Listenzeilen als
+   * Abzeichen zeigen. Leer heißt: nur die Hauptfassung (ab Werk, Issue #13).
+   * Fehlt bei einer älteren Antwort.
+   */
+  card_versions?: string[];
+  /** Auch „noch nicht angefragt" zeigen? Sonst nur Angefragtes und Vorhandenes. */
+  card_versions_always?: boolean;
   is_active: boolean;
   /**
    * Trägt dieses Konto den Betreiber-Haken?

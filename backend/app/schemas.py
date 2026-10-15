@@ -209,6 +209,9 @@ class UserPublic(BaseModel):
     email_verified: bool
     language: str
     theme: str
+    # Siehe ``User.card_versions``. Nie ``None`` nach aussen.
+    card_versions: list[str] = Field(default_factory=list)
+    card_versions_always: bool = False
     is_active: bool
     # Traegt dieses Konto den Betreiber-Haken?
     #
@@ -244,6 +247,12 @@ class UserPublic(BaseModel):
     def _als_wert(cls, wert: object) -> object:
         """Aus der Datenbank kommen ``None`` und ``-1``, nach aussen Woerter."""
         return kontingent_als_wert(wert) if wert is None or isinstance(wert, int) else wert
+
+    @field_validator("card_versions", mode="before")
+    @classmethod
+    def _keine_als_liste(cls, wert: object) -> object:
+        return [] if wert is None else wert
+
     # Wann der Admin das Kontingent zuletzt von Hand zurueckgesetzt hat.
     quota_reset_at: datetime | None
     # Wann dieses Konto die Hausordnung zuletzt abgehakt hat. ``None`` heisst
@@ -669,6 +678,9 @@ class ProfileUpdate(BaseModel):
     display_name: str | None = None
     language: str | None = None
     theme: str | None = None
+    # Ganze Liste, kein Zufuegen: ``[]`` heisst "keine weiteren Fassungen".
+    card_versions: list[str] | None = Field(default=None, max_length=50)
+    card_versions_always: bool | None = None
 
     # Benachrichtigungen per Mail - jede einzeln.
     mail_download_complete: bool | None = None

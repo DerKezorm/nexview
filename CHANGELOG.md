@@ -12,7 +12,17 @@ tag exists for it.
 
 ---
 
-## 1.1.3
+## 1.2.0
+
+### Added
+
+- **Each account chooses which versions its cards show** (#13). A card in Discover,
+  Search and lists carried a badge for every other version it could be requested in,
+  "not requested yet" included: with HD, 4K, Cartoon and Kids that was three badges on
+  every poster. Out of the box a card now shows the main version only. Under Profile,
+  Versions on cards, every account ticks the versions it wants to see, and chooses
+  whether they show only when requested or available (the default) or always. The
+  title page still lists every version with its status.
 
 ### Fixed
 

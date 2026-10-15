@@ -54,4 +54,16 @@ describe('MediaCard', () => {
     expect(screen.queryByTitle('Metacritic 71')).not.toBeInTheDocument()
     expect(screen.queryByText(/OMDb/)).not.toBeInTheDocument()
   })
+
+  it('zeigt ab Werk nur die Hauptfassung, keine weiteren Abzeichen (Issue #13)', () => {
+    const mitFassungen: CardItem = {
+      ...TITEL,
+      fassungen: [
+        { kennung: 'radarr-standard', name: 'HD', klasse: 'hd', quelle: 'arr', haupt: true, status: 'not_requested' },
+        { kennung: 'radarr-uhd', name: '4K', klasse: 'uhd', quelle: 'arr', haupt: false, status: 'in_library' },
+      ],
+    }
+    rendernSchlicht(<MediaCard item={mitFassungen} />)
+    expect(screen.queryByLabelText(/^4K ·/)).not.toBeInTheDocument()
+  })
 })

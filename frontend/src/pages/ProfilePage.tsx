@@ -16,11 +16,13 @@ import { Reiterreihe, type Reiter } from '../components/Reiterreihe'
 import { Button, Card, ErrorBanner, Field, Section } from '../components/ui'
 import { providerName } from '../lib/mediaserver'
 import { useConfig } from '../hooks/useConfig'
+import { fassungName, kachelWahl } from '../lib/fassungen'
 import { changeLanguage as spracheAnwenden } from '../i18n'
 import type { Language } from '../i18n'
 import { istTheme, themeAnwenden } from '../lib/theme'
 import type { Theme } from '../lib/theme'
 import { Darstellung } from './profile/Darstellung'
+import { FassungenAufKacheln } from './profile/FassungenAufKacheln'
 import { SpracheUndRegion } from './profile/SpracheUndRegion'
 import { StreamingDienste } from './profile/StreamingDienste'
 import { Kinder } from './profile/Kinder'
@@ -155,6 +157,17 @@ export function ProfilePage() {
   const [darstellung, setDarstellung] = useState<Theme>(
     istTheme(user?.theme) ? (user.theme as Theme) : 'dark',
   )
+  const [kachelFassungen, setKachelFassungen] = useState<string[]>(user?.card_versions ?? [])
+  const [kachelImmer, setKachelImmer] = useState(user?.card_versions_always ?? false)
+  // Als Menge verglichen: Die Reihenfolge der Haken sagt nichts.
+  const kachelGeaendert =
+    kachelImmer !== (user?.card_versions_always ?? false) ||
+    [...kachelFassungen].sort().join(' ') !== [...(user?.card_versions ?? [])].sort().join(' ')
+  const kachelWahlen = kachelWahl(t, config)
+  const hauptNamen = new Set(
+    (config?.fassungen ?? []).filter((f) => f.haupt).map((f) => fassungName(t, f)),
+  )
+  const hauptName = hauptNamen.size === 1 ? [...hauptNamen][0] : null
 
   const [message, setMessage] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -216,7 +229,8 @@ export function ProfilePage() {
       const restGeaendert =
         region !== (user?.discover_region ?? '') ||
         sprache !== user?.language ||
-        darstellung !== user?.theme
+        darstellung !== user?.theme ||
+        kachelGeaendert
 
       if (nameGeaendert || restGeaendert) {
         aktuell = await api.patch<User>('/api/auth/me', {
@@ -224,6 +238,8 @@ export function ProfilePage() {
           discover_region: region,
           language: sprache,
           theme: darstellung,
+          card_versions: kachelFassungen,
+          card_versions_always: kachelImmer,
         })
       }
       // Die Adresse zuletzt: Schlägt sie fehl (schon vergeben), ist der Rest
@@ -238,6 +254,8 @@ export function ProfilePage() {
       if (!aktuell) return
       updateUser(aktuell)
       setRegion(aktuell.discover_region ?? '')
+      setKachelFassungen(aktuell.card_versions ?? [])
+      setKachelImmer(aktuell.card_versions_always ?? false)
       // Erst jetzt umschalten: Die Auswahl ist ein Vorschlag, bis gespeichert
       // wird - sonst spränge die Oberfläche schon beim Aufklappen der Liste um.
       void spracheAnwenden(aktuell.language as Language)
@@ -331,7 +349,8 @@ export function ProfilePage() {
     (email.trim() !== '' && email.trim() !== (user.email ?? '')) ||
     region !== (user.discover_region ?? '') ||
     sprache !== user.language ||
-    darstellung !== user.theme
+    darstellung !== user.theme ||
+    kachelGeaendert
 
   // ⚠️ Dieselbe Reiterreihe wie unter „System" - bis eben zeichnete diese
   // Seite ihre Reihe selbst, ohne Symbole. Die Klassen stimmten zwar zufaellig
@@ -604,6 +623,22 @@ export function ProfilePage() {
                   disabled={speichern.isPending}
                 />
               </Card>
+
+              {/* Nur, wenn es etwas zu wählen gibt: ohne weitere Fassung
+                  zeigt eine Kachel ohnehin nur die Hauptfassung. */}
+              {kachelWahlen.length > 0 && (
+                <Card className="flex flex-col gap-4">
+                  <FassungenAufKacheln
+                    wahl={kachelWahlen}
+                    hauptName={hauptName}
+                    gewaehlt={kachelFassungen}
+                    setGewaehlt={setKachelFassungen}
+                    immer={kachelImmer}
+                    setImmer={setKachelImmer}
+                    disabled={speichern.isPending}
+                  />
+                </Card>
+              )}
             </div>
           </div>
           )}

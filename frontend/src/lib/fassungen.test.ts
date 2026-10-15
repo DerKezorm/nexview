@@ -8,13 +8,15 @@
 
 import { describe, expect, it } from 'vitest'
 
-import type { AppConfig, Fassung, MediaItem, SeasonInfo, User } from '../api/types'
+import type { AppConfig, Fassung, FassungAchse, MediaItem, SeasonInfo, User } from '../api/types'
 import {
+  aufKachel,
   anfragbareFassungen,
   darfFassungAnfragen,
   fassungMitArt,
   fassungName,
   fassungStatus,
+  kachelWahl,
   kannAnfragen,
   quelleBereit,
   staffelFassung,
@@ -233,5 +235,55 @@ describe('steht die Quelle überhaupt bereit?', () => {
       fassungen: [fassung({ kennung: 'radarr-standard', haupt: true, bereit: false })],
     } as AppConfig
     expect(quelleBereit(config, 'movie')).toBe(false)
+  })
+})
+
+describe('aufKachel (Issue #13)', () => {
+  const achse = (kennung: string, status: FassungAchse['status'], haupt = false): FassungAchse => ({
+    kennung,
+    name: kennung,
+    klasse: null,
+    quelle: 'nex',
+    haupt,
+    status,
+  })
+  const ACHSEN = [
+    achse('hd', 'in_library', true),
+    achse('uhd', 'in_library'),
+    achse('cartoon', 'not_requested'),
+    achse('kids', 'requested'),
+  ]
+  const kennungen = (liste: FassungAchse[]) => liste.map((f) => f.kennung)
+
+  it('zeigt ab Werk keine weitere Fassung, auch ohne Konto', () => {
+    expect(aufKachel(ACHSEN, { card_versions: [], card_versions_always: false })).toEqual([])
+    expect(aufKachel(ACHSEN, {})).toEqual([])
+    expect(aufKachel(ACHSEN, null)).toEqual([])
+  })
+
+  it('zeigt gewählte Fassungen nur, wenn dort etwas angefragt ist oder vorliegt', () => {
+    const user = { card_versions: ['uhd', 'cartoon', 'kids'], card_versions_always: false }
+    expect(kennungen(aufKachel(ACHSEN, user))).toEqual(['uhd', 'kids'])
+  })
+
+  it('zeigt mit „Immer" auch „noch nicht angefragt", nie aber die Hauptfassung', () => {
+    const user = { card_versions: ['hd', 'cartoon'], card_versions_always: true }
+    expect(kennungen(aufKachel(ACHSEN, user))).toEqual(['cartoon'])
+  })
+})
+
+describe('kachelWahl', () => {
+  it('fasst gleich benannte Fassungen zusammen und lässt Gesperrtes weg', () => {
+    const wahl = kachelWahl(
+      t,
+      config([
+        HAUPT,
+        VIERK,
+        fassung({ kennung: 'sonarr-standard', media_type: 'tv', haupt: true }),
+        fassung({ kennung: 'sonarr-uhd', media_type: 'tv', klasse: 'uhd' }),
+        fassung({ kennung: 'kids', quelle: 'nex', name: 'Kids', darf_anfragen: false }),
+      ]),
+    )
+    expect(wahl).toEqual([{ name: 'uhd.tierUhd', kennungen: ['radarr-uhd', 'sonarr-uhd'] }])
   })
 })

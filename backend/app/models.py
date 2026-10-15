@@ -339,6 +339,21 @@ class User(Base):
     # Helle oder dunkle Darstellung. Gehoert zum Konto, nicht zum Browser:
     # so findet jeder seine Einstellung auf jedem Geraet wieder.
     theme: Mapped[str] = mapped_column(String(5), default="dark", nullable=False)
+    # Welche weiteren Fassungen auf Kacheln und Listenzeilen ein eigenes
+    # Abzeichen bekommen, als Liste von Kennungen. NULL und ``[]`` heissen
+    # keine: ab Werk zeigt eine Kachel nur den Zustand der Hauptfassung
+    # (Issue #13). Vorher trug jede Kachel ein Abzeichen je
+    # eingerichteter Fassung, auch "noch nicht angefragt" - bei vier Fassungen
+    # drei Abzeichen auf jedem Poster. Titelseite und Detailfenster zeigen
+    # weiter alle.
+    #
+    # ⚠️ **Nur als Ganzes zuweisen**, wie jede JSON-Spalte hier.
+    card_versions: Mapped[list | None] = mapped_column(JSON)
+    # Auch "noch nicht angefragt" zeigen? Ab Werk nur, was angefragt ist oder
+    # vorliegt.
+    card_versions_always: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="0", nullable=False
+    )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     # --- Der Betreiber -----------------------------------------------------

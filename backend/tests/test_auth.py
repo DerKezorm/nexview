@@ -102,6 +102,29 @@ def test_darstellung_wird_am_konto_gespeichert(admin_client: TestClient) -> None
     assert admin_client.get("/api/auth/me").json()["theme"] == "light"
 
 
+def test_fassungen_auf_kacheln_ab_werk_keine(admin_client: TestClient) -> None:
+    """Issue #13: Ab Werk zeigt eine Kachel nur die Hauptfassung."""
+    me = admin_client.get("/api/auth/me").json()
+    assert me["card_versions"] == []
+    assert me["card_versions_always"] is False
+
+
+def test_fassungen_auf_kacheln_werden_am_konto_gespeichert(admin_client: TestClient) -> None:
+    response = admin_client.patch(
+        "/api/auth/me",
+        json={"card_versions": ["radarr-uhd", " sonarr-uhd ", "radarr-uhd", ""], "card_versions_always": True},
+    )
+    assert response.status_code == 200
+    me = admin_client.get("/api/auth/me").json()
+    assert me["card_versions"] == ["radarr-uhd", "sonarr-uhd"]
+    assert me["card_versions_always"] is True
+    # Ein Speichern ohne die Felder laesst sie stehen, die leere Liste nimmt alle weg.
+    admin_client.patch("/api/auth/me", json={"theme": "light"})
+    assert admin_client.get("/api/auth/me").json()["card_versions"] == ["radarr-uhd", "sonarr-uhd"]
+    admin_client.patch("/api/auth/me", json={"card_versions": []})
+    assert admin_client.get("/api/auth/me").json()["card_versions"] == []
+
+
 def test_unsinnige_darstellung_wird_abgelehnt(admin_client: TestClient) -> None:
     response = admin_client.patch("/api/auth/me", json={"theme": "lila"})
     assert response.status_code == 422

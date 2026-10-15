@@ -143,6 +143,56 @@ export function hauptfassung(
  * immer um die Stufe, und daran ändert der Umbau nichts. Alles andere nennt
  * sich beim Namen.
  */
+/**
+ * Die weiteren Fassungen, die eine Kachel oder Listenzeile als Abzeichen
+ * zeigt (Issue #13).
+ *
+ * Bis 1.1.2 trug jede Kachel ein Abzeichen je weiterer Fassung, auch für
+ * „noch nicht angefragt". Mit HD, 4K, Cartoon und Kids standen damit drei
+ * Abzeichen auf jedem Poster. Jetzt wählt jedes Konto im Profil, welche es
+ * sehen will; ab Werk keine. Gezeigt wird eine gewählte Fassung nur, wenn dort
+ * etwas angefragt ist oder vorliegt, außer das Konto will sie immer sehen.
+ *
+ * Titelseite und Detailfenster rufen das nicht auf: Dort stehen alle.
+ */
+export function aufKachel(
+  fassungen: FassungAchse[] | undefined,
+  user: Pick<User, 'card_versions' | 'card_versions_always'> | null | undefined,
+): FassungAchse[] {
+  const gewaehlt = new Set(user?.card_versions ?? [])
+  return (fassungen ?? []).filter(
+    (f) =>
+      !f.haupt &&
+      gewaehlt.has(f.kennung) &&
+      (user?.card_versions_always === true || f.status !== 'not_requested'),
+  )
+}
+
+/** Eine Zeile der Wahl im Profil: ein Name, eine oder mehrere Kennungen. */
+export type KachelWahl = { name: string; kennungen: string[] }
+
+/**
+ * Was ein Konto für die Kacheln wählen kann: die weiteren Fassungen, die es
+ * anfragen darf, **je Name zusammengefasst**.
+ *
+ * Im ARR-Betrieb heißen die 4K-Fassung der Filme und die der Serien beide
+ * „4K"; zwei Haken mit demselben Namen sähen nach einem Fehler aus. Eine
+ * Fassung, die das Konto nicht anfragen darf, bekommt auf der Kachel ohnehin
+ * keine Achse (`fassungsachsen.anreichern`), ein Haken dafür bewirkte nichts.
+ */
+export function kachelWahl(
+  t: TFunction,
+  config: Pick<AppConfig, 'fassungen'> | undefined | null,
+): KachelWahl[] {
+  const zeilen = new Map<string, string[]>()
+  for (const f of config?.fassungen ?? []) {
+    if (f.haupt || !f.darf_anfragen) continue
+    const name = fassungName(t, f)
+    zeilen.set(name, [...(zeilen.get(name) ?? []), f.kennung])
+  }
+  return [...zeilen].map(([name, kennungen]) => ({ name, kennungen }))
+}
+
 export function fassungName(t: TFunction, fassung: Fassung | FassungAchse): string {
   if (fassung.quelle === 'arr') {
     return fassung.klasse === 'uhd' ? t('uhd.tierUhd') : t('uhd.tierStandard')

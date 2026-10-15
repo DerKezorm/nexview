@@ -12,6 +12,7 @@ import { RatingBadges } from './RatingBadges'
 import { Poster, RatingBadge } from './Poster'
 import { StatusBadge } from './StatusBadge'
 import { FassungBadge } from './FassungBadge'
+import { useKachelFassungen } from './useKachelFassungen'
 import { WatchedBadge } from './WatchedBadge'
 
 /**
@@ -111,6 +112,7 @@ export function MediaCard({
   const { t, i18n } = useTranslation()
   const runtime = formatRuntime(item.runtime_minutes, i18n.language)
   const anfragbar = darfAnfragen(item.status)
+  const kachelFassungen = useKachelFassungen(item.fassungen)
   const kompakt = variant === 'kompakt'
 
   /* Ohne TMDB-Kennung gibt es keine Detailseite. Das kommt bei Sonarr-Folgen
@@ -140,11 +142,9 @@ export function MediaCard({
           <div className="absolute inset-x-2 top-2 flex flex-wrap items-start justify-between gap-1.5">
             <span className="flex flex-wrap items-start gap-1.5">
               <StatusBadge status={item.status} />
-              {(item.fassungen ?? [])
-                .filter((f) => !f.haupt)
-                .map((f) => (
-                  <FassungBadge key={f.kennung} fassung={f} kompakt />
-                ))}
+              {kachelFassungen.map((f) => (
+                <FassungBadge key={f.kennung} fassung={f} kompakt />
+              ))}
               {badge}
             </span>
             <RatingBadge vote={item.vote_average} count={item.vote_count} />

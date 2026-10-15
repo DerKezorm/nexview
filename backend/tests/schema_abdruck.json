@@ -2912,6 +2912,16 @@
         "schluessel": false,
         "typ": "BOOLEAN"
       },
+      "card_versions": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "JSON"
+      },
+      "card_versions_always": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "BOOLEAN"
+      },
       "changelog_gesehen": {
         "leer_erlaubt": true,
         "schluessel": false,

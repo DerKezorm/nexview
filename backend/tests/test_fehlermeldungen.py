@@ -118,6 +118,8 @@ def _kennungen_im_backend() -> set[str]:
             # nexcrates Fehler tragen ihre Kennung als erstes Argument:
             # ``NexcrateError("nexcrate_timeout", ungewiss=True)``.
             "NexcrateError",
+            # Die Kopplung der iPhone-App: ``KopplungFehler("app_pairing_limit", ...)``.
+            "KopplungFehler",
         ):
             gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
         # Kennungen des OIDC-Rueckwegs: Sie erreichen die Oberflaeche nicht als

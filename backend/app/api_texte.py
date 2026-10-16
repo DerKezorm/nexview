@@ -672,6 +672,41 @@ TEXTE: dict[str, tuple[str, str]] = {
             'token itself**; that exists once, at creation.'
         ),
     ),
+    'POST /api/me/app-kopplung': (
+        'Prepare a QR code for the iPhone app',
+        (
+            'Prepares a pairing for the calling account and returns it as a link and a QR code. '
+            'The app fetches its own key with it once, within ten minutes; the key comes into being '
+            'only then and inherits the rights of this account. The address in the code is the '
+            'public address from the settings, otherwise `adresse` from the body.'
+        ),
+    ),
+    'POST /api/children/{child_id}/app-kopplung': (
+        'Prepare a QR code for a child device',
+        (
+            "The same for one of the caller's own child accounts. The device signs in as the child "
+            'and reaches nothing an adult account reaches. Needs the right to keep child accounts.'
+        ),
+    ),
+    'GET /api/me/app-kopplung/{kennung}': (
+        'Whether the app fetched its key',
+        (
+            '`wartet`, `verbunden` with the name of the device, `fehlgeschlagen` when no key could be '
+            'made, or `abgelaufen`. Only the account that prepared the code sees it.'
+        ),
+    ),
+    'DELETE /api/me/app-kopplung/{kennung}': (
+        'Withdraw a QR code',
+        'Closes a code nobody has scanned yet. A code already used stays; revoke its key instead.',
+    ),
+    'GET /api/children/{child_id}/geraete': (
+        "List a child's devices",
+        "The keys of one of the caller's own child accounts, with when each was last used.",
+    ),
+    'DELETE /api/children/{child_id}/geraete/{schluessel_id}': (
+        "Disconnect a child's device",
+        'Removes the key at once; the device can no longer sign in. A new code connects it again.',
+    ),
     'POST /api/auth/me/schluessel': (
         'Create an API token',
         (

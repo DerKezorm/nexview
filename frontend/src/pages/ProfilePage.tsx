@@ -27,6 +27,7 @@ import { SpracheUndRegion } from './profile/SpracheUndRegion'
 import { StreamingDienste } from './profile/StreamingDienste'
 import { Kinder } from './profile/Kinder'
 import { ApiSchluessel } from './profile/ApiSchluessel'
+import { IphoneApp } from './profile/IphoneApp'
 import { BetreiberUebergeben } from './profile/BetreiberUebergeben'
 import { KontoLoeschen } from './profile/KontoLoeschen'
 import { MediaServerLink } from './profile/MediaServerLink'
@@ -728,6 +729,7 @@ export function ProfilePage() {
                   Verknüpfen oder Lösen (Bauplan 04, „Mein Konto → Sicherheit“). */}
               {user.role !== 'child' && <OidcLinks />}
 
+              {user.role !== 'child' && <IphoneApp />}
               {user.role !== 'child' && <ApiSchluessel />}
 
               {/* Der Antrag, das eigene Konto zu löschen - nicht für

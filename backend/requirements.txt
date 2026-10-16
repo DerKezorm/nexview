@@ -19,3 +19,6 @@ http-ece==1.2.1
 # dann, wenn man die Sicherung braucht, laeuft Nexview vielleicht nicht.
 pyzipper==0.4.0
 python-multipart==0.0.31
+# Der QR-Code fuer "iPhone-App verbinden". Reines Python ohne weitere
+# Abhaengigkeiten, dieselbe Fassung wie in nexcrate.
+segno==1.6.6

@@ -17,6 +17,7 @@ import {
 } from '../../components/ui'
 import { useAuth } from '../../auth/useAuth'
 import { useConfig } from '../../hooks/useConfig'
+import { KinderGeraete } from './KinderGeraete'
 import { KinderGesperrt } from './KinderGesperrt'
 import { KinderHilfe } from './KinderHilfe'
 import { Kindervorschau } from './Kindervorschau'
@@ -591,6 +592,8 @@ function KindFeld({
             ))}
           </div>
         </fieldset>
+
+        {kind !== null && <KinderGeraete kind={kind} />}
 
         <div className="flex flex-wrap gap-2">
           <Button type="submit" loading={speichern.isPending} disabled={!geaendert}>

@@ -56,6 +56,13 @@ KINDER_ERLAUBT = {
     # Frage, ob Nexview laeuft. Alles andere unter /api/v1 haengt an
     # NUR_ERWACHSENE - siehe main.py.
     "/api/v1/health",
+    # Die App holt ihren Schluessel ab - ohne Anmeldung, denn wer noch keinen
+    # hat, kann sich nicht anmelden. Der Nachweis ist das Geheimnis aus dem
+    # QR-Code, 32 Zeichen Zufall, und ohne es antwortet die Adresse 404 und
+    # verraet nichts. Ein Kind bekommt hier nur den Schluessel seines eigenen
+    # Kinderkontos, und auch den nur mit einem Code, den seine Eltern erzeugt
+    # haben (``routers/app_kopplung.py``).
+    "/api/app/1/pairing/{pairing_id}/key",
     "/api/setup/sicherung/pruefen",
     "/api/setup/sicherung/einspielen",
     # Der Umzug aus einer laufenden Seerr-Installation. Dieselbe Einordnung

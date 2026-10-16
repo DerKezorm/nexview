@@ -2208,7 +2208,14 @@
       "password_login_needs_provider": "Signing in with a password can only be switched off once a sign-in provider is on.",
       "public_url_change": "The redirect address of a sign-in provider changes with it.",
       "public_url_needed": "Nexview has no public address yet.",
-      "apikey_not_allowed": "This works in a session only, not with a key."
+      "apikey_not_allowed": "This works in a session only, not with a key.",
+      "app_pairing_address": "The QR code needs the address nexview is reachable at. Enter it under Settings → Address.",
+      "app_pairing_limit": "Five codes are open already. Wait a few minutes until they expire.",
+      "app_pairing_not_found": "This code does not exist any more.",
+      "app_pairing_account_inactive": "The account is disabled.",
+      "children_not_allowed": "Child accounts need the operator's permission.",
+      "apikey_not_found": "This key does not exist.",
+      "pairing_not_found": "This code does not exist any more."
     }
   },
   "language": {
@@ -3396,6 +3403,29 @@
     "callback": "Nexview notifies:",
     "callbackPending": "not confirmed yet",
     "callbackStop": "Stop notifying"
+  },
+  "appConnect": {
+    "title": "iPhone app",
+    "intro": "With the nexview app you request on the go and, if you may, approve. On connecting, the app gets its own key with exactly your rights. It then shows under API tokens below, where you can revoke it at any time.",
+    "button": "Connect the iPhone app",
+    "scan": "Open the nexview app on your iPhone and tap “Scan QR code”, or simply point the camera at the code.",
+    "valid": "The code is valid for 10 minutes and for one device.",
+    "address": "The app connects to {{adresse}}.",
+    "qr": "QR code to connect the app",
+    "connected": "Connected: {{geraet}}.",
+    "expired": "The code has expired.",
+    "again": "Make a new code",
+    "childButton": "Connect a device",
+    "childTitle": "Connect a device for {{name}}",
+    "childScan": "Open the nexview app on {{name}}'s device, tap “Set up for a child” and hold it up to this code.",
+    "childConnected": "Connected. {{name}} can now browse and wish for something.",
+    "devices": "Devices",
+    "noDevices": "No device connected yet.",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect this device?",
+    "disconnectWarning": "The device can no longer get in. You can connect again at any time with a new code.",
+    "failed": "The app did not get a key. Usually the account has 20 keys already: revoke an old one under API tokens and try again.",
+    "passwordKeeps": "A new password does not disconnect the devices. That is what “Disconnect” is for."
   },
   "adminTokens": {
     "title": "API tokens in this installation",

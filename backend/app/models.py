@@ -1069,6 +1069,42 @@ class ApiKey(Base):
     user: Mapped[User] = relationship("User")
 
 
+class AppKopplung(Base):
+    """Eine vorbereitete Kopplung fuer die iPhone-App: der QR-Code im Profil.
+
+    Ein angemeldeter Mensch legt sie im Browser an, Kennung und Geheimnis reisen
+    im QR-Code zur App, und die App holt damit **einmal** ihren Schluessel ab
+    (``services/app_kopplung.py``). Vorbild ist nexcrates Kopplung (S1).
+
+    ⚠️ **Der Schluessel entsteht erst beim Abholen.** Ein Code, den niemand
+    scannt, hinterlaesst nichts - keinen Schluessel, der irgendwo herumliegt.
+    Gespeichert wird nur die Pruefsumme des Geheimnisses, wie bei ``ApiKey``.
+
+    ``user_id`` ist das Konto, dem der Schluessel gehoeren wird; ``angelegt_von``
+    das, das den Code erzeugt hat. Bei Erwachsenen ist das dasselbe, beim
+    Kinderkonto ist es das Elternteil.
+    """
+
+    __tablename__ = "app_kopplungen"
+
+    kennung: Mapped[str] = mapped_column(String(32), primary_key=True)
+    geheimnis_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    angelegt_von: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    #: ``bereit`` bis zum Abholen, dann ``abgeholt``.
+    stand: Mapped[str] = mapped_column(String(16), nullable=False, default="bereit")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    #: Nach dem Abholen: welcher Schluessel daraus wurde.
+    api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="SET NULL")
+    )
+
+
 class BeendeteSitzung(Base):
     """Eine Sitzung, die mit "Abmelden" beendet wurde - die Merkliste dazu.
 

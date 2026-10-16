@@ -59,7 +59,13 @@ def _pruefsumme(klartext: str) -> str:
 
 
 def anlegen(
-    db: Session, user: User, *, name: str, nur_lesen: bool = False, tage: int | None = None
+    db: Session,
+    user: User,
+    *,
+    name: str,
+    nur_lesen: bool = False,
+    tage: int | None = None,
+    kindergeraet: bool = False,
 ) -> tuple[ApiKey, str]:
     """Einen Schluessel erzeugen. Gibt den Eintrag **und** den Klartext zurueck.
 
@@ -69,7 +75,13 @@ def anlegen(
     # ⚠️ Kinderkonten bekommen keine. Sie sind Unterprofile ihrer Eltern; ein
     # Schluessel darauf waere ein Zugang zu einem Konto, das gar nicht fuer
     # eigenstaendige Nutzung gedacht ist.
-    if user.role == Role.child:
+    #
+    # **Die eine Ausnahme ist das Geraet des Kindes** (``kindergeraet``), und
+    # sie entsteht nur in ``app_kopplung.abholen``: Das Elternteil erzeugt den
+    # QR-Code, das iPad des Kindes holt damit seinen Schluessel. Der kann nicht
+    # mehr als die Anmeldung mit Name und Passwort, die das Kind ohnehin hat -
+    # jede Erwachsenenadresse sperrt ``require_adult``, auch fuer Schluessel.
+    if user.role == Role.child and not kindergeraet:
         raise SchluesselFehler("apikey_not_for_children", "Kinderkonten bekommen keine Schluessel.")
 
     sauber = name.strip()

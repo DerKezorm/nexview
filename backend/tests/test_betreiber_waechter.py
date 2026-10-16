@@ -105,6 +105,10 @@ OHNE_SCHUTZ: dict[str, str] = {
         "naehme dem Betreiber etwas weg, statt ihn zu schuetzen - und der Haken "
         "gibt ihm nichts und nimmt ihm nichts."
     ),
+    "POST /api/app/1/approvals/all/{user_id}": (
+        "Derselbe Handler wie approve-all darueber, unter der Adresse der "
+        "iPhone-App - dieselbe Entscheidung."
+    ),
     "POST /api/users/betreiber/uebergeben": (
         "Der Traeger gibt selbst weiter, und ``user_id`` im Rumpf ist das "
         "**Ziel** der Uebergabe, nicht das geschuetzte Konto. Die Wache haenge "

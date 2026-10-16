@@ -53,6 +53,12 @@ from .routers import (
     analyse as analyse_router,
 )
 from .routers import (
+    app1 as app1_router,
+)
+from .routers import (
+    app_kopplung as app_kopplung_router,
+)
+from .routers import (
     beschaffung as beschaffung_router,
 )
 from .routers import (
@@ -352,6 +358,17 @@ app.include_router(beschaffung_router.instanzen_router)
 # nicht am Handler.
 app.include_router(v1_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(v1_router.public_router)
+# ⚠️ **Die Flaeche der eigenen iPhone-App** - siehe routers/app1.py. Dieselbe
+# Regel wie bei v1: Die Erwachsenenadressen haengen mit ``NUR_ERWACHSENE``,
+# sonst kaeme ein Kinderschluessel an ihnen vorbei. Die Kinderadressen
+# verlangen selbst ein Kinderkonto. Das Abholen des Schluessels ist die eine
+# Adresse ohne Anmeldung: Wer noch keinen Schluessel hat, kann sich nicht
+# anmelden.
+app.include_router(app1_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(app1_router.kids_router)
+app.include_router(app_kopplung_router.public_router)
+# Code erzeugen und Geraete der Kinder: Oberflaeche, jede Adresse ``AdultUser``.
+app.include_router(app_kopplung_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(about_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(details_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(calendar_router.router, dependencies=NUR_ERWACHSENE)

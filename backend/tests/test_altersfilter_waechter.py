@@ -260,6 +260,13 @@ PROBEN: dict[str, str] = {
     ),
     "GET /api/v1/search/{media_type}": "/api/v1/search/movie?q=Titel",
     "GET /api/v1/media/{media_type}/{tmdb_id}": f"/api/v1/media/movie/{GESPERRT}",
+    # Die Flaeche der iPhone-App: dieselben Handler, zweite Adresse. Gemessen
+    # wird trotzdem, denn eine Zweitschrift, die den Filter verliert, sieht man
+    # nur hier.
+    "GET /api/app/1/discover/{media_type}": "/api/app/1/discover/movie",
+    "GET /api/app/1/search/{media_type}": "/api/app/1/search/movie?q=Titel",
+    "GET /api/app/1/home/trending": "/api/app/1/home/trending",
+    "GET /api/app/1/media/{media_type}/{tmdb_id}": f"/api/app/1/media/movie/{GESPERRT}",
 }
 
 #: Titeladressen, die hier **nicht** angerufen werden - jede mit Grund.
@@ -298,6 +305,14 @@ OHNE_PROBE: dict[str, str] = {
     "GET /api/kids/search": "Dieselbe Ueberlegung wie bei der Rubrik darueber.",
     "GET /api/kids/title/{media_type}/{tmdb_id}": (
         "Dieselbe Ueberlegung wie bei der Rubrik darueber."
+    ),
+    "GET /api/app/1/kids/rubrik/{rubrik}": (
+        "Dieselben Kinder-Handler unter der Adresse der iPhone-App - derselbe "
+        "Mechanismus wie /api/kids/rubrik darueber, mit denselben Tests."
+    ),
+    "GET /api/app/1/kids/search": "Dieselbe Ueberlegung wie bei der App-Rubrik darueber.",
+    "GET /api/app/1/kids/title/{media_type}/{tmdb_id}": (
+        "Dieselbe Ueberlegung wie bei der App-Rubrik darueber."
     ),
     "GET /api/children/{child_id}/preview/rubrik/{rubrik}": (
         "Die Elternvorschau auf die Kinderansicht - derselbe Mechanismus wie "

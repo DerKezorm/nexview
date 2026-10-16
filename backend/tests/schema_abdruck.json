@@ -53,6 +53,55 @@
       }
     }
   },
+  "app_kopplungen": {
+    "eindeutig": [],
+    "indizes": [
+      "ix_app_kopplungen_angelegt_von",
+      "ix_app_kopplungen_user_id"
+    ],
+    "spalten": {
+      "angelegt_von": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "api_key_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "expires_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "geheimnis_hash": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(64)"
+      },
+      "kennung": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(32)"
+      },
+      "stand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "user_id": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
   "arr_gesundheit": {
     "eindeutig": [
       [

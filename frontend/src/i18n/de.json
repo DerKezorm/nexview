@@ -2208,7 +2208,14 @@
       "password_login_needs_provider": "Die Anmeldung mit Passwort lässt sich erst abschalten, wenn ein Anmelde-Anbieter aktiv ist.",
       "public_url_change": "Die Rückleitadresse eines Anmelde-Anbieters ändert sich mit.",
       "public_url_needed": "Nexview hat noch keine öffentliche Adresse.",
-      "apikey_not_allowed": "Das geht nur in einer Sitzung, nicht mit einem Schlüssel."
+      "apikey_not_allowed": "Das geht nur in einer Sitzung, nicht mit einem Schlüssel.",
+      "app_pairing_address": "Für den QR-Code fehlt die Adresse, unter der nexview erreichbar ist. Trag sie unter Einstellungen → Adresse ein.",
+      "app_pairing_limit": "Es sind schon fünf Codes offen. Warte ein paar Minuten, bis sie ablaufen.",
+      "app_pairing_not_found": "Diesen Code gibt es nicht mehr.",
+      "app_pairing_account_inactive": "Das Konto ist deaktiviert.",
+      "children_not_allowed": "Für Kinderkonten brauchst du eine Freigabe vom Betreiber.",
+      "apikey_not_found": "Diesen Schlüssel gibt es nicht.",
+      "pairing_not_found": "Diesen Code gibt es nicht mehr."
     }
   },
   "language": {
@@ -3396,6 +3403,29 @@
     "callback": "Nexview benachrichtigt:",
     "callbackPending": "noch nicht bestätigt",
     "callbackStop": "Nicht mehr benachrichtigen"
+  },
+  "appConnect": {
+    "title": "iPhone-App",
+    "intro": "Mit der nexview-App fragst du unterwegs an und, wenn du darfst, gibst du frei. Die App bekommt beim Verbinden einen eigenen Schlüssel mit genau deinen Rechten. Er steht danach unten unter API-Token, dort kannst du ihn jederzeit widerrufen.",
+    "button": "iPhone-App verbinden",
+    "scan": "Öffne die nexview-App auf deinem iPhone und tipp auf „QR-Code scannen“, oder halte einfach die Kamera auf den Code.",
+    "valid": "Der Code gilt 10 Minuten und nur für ein Gerät.",
+    "address": "Die App verbindet sich mit {{adresse}}.",
+    "qr": "QR-Code zum Verbinden der App",
+    "connected": "Verbunden: {{geraet}}.",
+    "expired": "Der Code ist abgelaufen.",
+    "again": "Neuen Code erzeugen",
+    "childButton": "Gerät verbinden",
+    "childTitle": "Gerät für {{name}} verbinden",
+    "childScan": "Öffne die nexview-App auf dem Gerät von {{name}}, tipp auf „Für ein Kind einrichten“ und halte es an diesen Code.",
+    "childConnected": "Verbunden. {{name}} kann jetzt stöbern und sich etwas wünschen.",
+    "devices": "Geräte",
+    "noDevices": "Noch kein Gerät verbunden.",
+    "disconnect": "Trennen",
+    "disconnectTitle": "Gerät trennen?",
+    "disconnectWarning": "Das Gerät kommt danach nicht mehr hinein. Verbinden geht jederzeit mit einem neuen Code.",
+    "failed": "Die App hat keinen Schlüssel bekommen. Meist sind schon 20 Schlüssel am Konto: Widerrufe einen alten unter API-Token und versuch es noch einmal.",
+    "passwordKeeps": "Ein neues Passwort trennt die Geräte nicht. Dafür ist „Trennen“ da."
   },
   "adminTokens": {
     "title": "API-Token in dieser Installation",

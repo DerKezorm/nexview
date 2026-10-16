@@ -53,7 +53,7 @@ def test_die_flaeche_ist_genau_die_zugesagte() -> None:
 MAX_TIEFE = 8
 
 
-def _felder_je_pfad() -> dict[str, list[str]]:
+def _felder_je_pfad(praefix_der_flaeche: str = "/api/v1") -> dict[str, list[str]]:
     """Aus dem OpenAPI-Dokument die Antwortfelder der v1-Pfade ziehen.
 
     ⚠️ **Bis in die Tiefe, nicht nur die oberste Ebene.** Vorher wurde genau
@@ -115,7 +115,7 @@ def _felder_je_pfad() -> dict[str, list[str]]:
 
     ergebnis: dict[str, list[str]] = {}
     for pfad, operationen in dokument.get("paths", {}).items():
-        if not pfad.startswith("/api/v1"):
+        if not pfad.startswith(praefix_der_flaeche):
             continue
         for methode, operation in operationen.items():
             antwort = (

@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.2.1
+
+### Fixed
+
+- **A movie or series that left nexcrate and came back stays in the library.** Removed
+  and added again between two looks, or restored from nexcrate's recycle bin, the
+  title arrived in nexcrate's change list twice: once as removed, once as present.
+  Nexview applied the removal last and lost the title until the next full read. Each
+  entry now counts by its change number, so the older removal no longer wins.
+
 ## 1.2.0 – 15.10.2026
 
 ### Added

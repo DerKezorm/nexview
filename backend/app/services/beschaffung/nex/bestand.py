@@ -450,7 +450,15 @@ class Bestand:
                 wohin[str(eintrag.get("ref"))] = eintrag
                 geaendert += 1
             for weg in antwort.get("removed") or []:
-                wohin.pop(str(weg.get("ref")), None)
+                # Ein Grabstein gilt nur, wenn er neuer ist als der gehaltene
+                # Titel: Entfernt und wieder hinzugefügt zwischen zwei Blicken
+                # bringt beide in dieselbe Antwort, der Grabstein mit der
+                # kleineren Zahl (nexcrates Vertrag, wie nexcrate-ios).
+                ref = str(weg.get("ref"))
+                gehalten = (wohin.get(ref) or {}).get("seq")
+                if gehalten is not None and int(gehalten) > int(weg.get("seq") or 0):
+                    continue
+                wohin.pop(ref, None)
                 geaendert += 1
             after = int(antwort.get("next_after") or after)
             if not antwort.get("more"):

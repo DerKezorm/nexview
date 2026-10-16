@@ -666,21 +666,23 @@ class FakeNexcrate:
         kind = abfrage.get("kind") or "movie"
         after = int(abfrage.get("after") or 0)
         grenze = int(abfrage.get("limit") or 500)
-        gefunden = sorted(
-            (t for (art, _), t in self.titles.items() if art == kind and t["seq"] > after),
-            key=lambda t: t["seq"],
-        )
-        gezeigt = gefunden[:grenze]
-        weg = [e for e in self.removed if e["kind"] == kind and e["seq"] > after]
-        letzte = max(
-            [t["seq"] for t in gezeigt] + [e["seq"] for e in weg] + [after],
-            default=after,
-        )
+        # Wie nexcrates ``changes.since``: Titel und Grabsteine in einer Reihe
+        # nach ``seq``, die Seite schneidet quer durch beide. Wer bei 0
+        # anfaengt, bekommt keine Grabsteine.
+        reihe: list[tuple[int, dict[str, Any] | None, dict[str, Any] | None]] = [
+            (t["seq"], t, None)
+            for (art, _), t in self.titles.items()
+            if art == kind and t["seq"] > after
+        ]
+        if after > 0:
+            reihe += [(e["seq"], None, e) for e in self.removed if e["kind"] == kind and e["seq"] > after]
+        reihe.sort(key=lambda zeile: zeile[0])
+        gezeigt = reihe[:grenze]
         return {
-            "items": [self._ohne_seq(t) | {"seq": t["seq"]} for t in gezeigt],
-            "removed": weg,
-            "next_after": letzte,
-            "more": len(gefunden) > len(gezeigt),
+            "items": [self._ohne_seq(t) | {"seq": t["seq"]} for _, t, _ in gezeigt if t is not None],
+            "removed": [e for _, _, e in gezeigt if e is not None],
+            "next_after": gezeigt[-1][0] if gezeigt else after,
+            "more": len(reihe) > len(gezeigt),
             # ⚠️ ``after`` ueber ``latest`` antwortet still leer, nicht 410
             # (Befund, hier nachgemessen).
             "latest": self.seq,

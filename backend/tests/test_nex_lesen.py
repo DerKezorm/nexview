@@ -179,6 +179,43 @@ async def test_ein_entfernter_titel_faellt_aus_dem_bestand(
     assert set(await weg.bestand_filme()) == {603}
 
 
+async def test_entfernt_und_wieder_da_bleibt_im_bestand(nex: Any, nexcrate: FakeNexcrate) -> None:
+    """Befund nexcrate-ios: Ein alter Grabstein löschte den lebenden Titel.
+
+    Zwischen zwei Blicken entfernt und wieder hinzugefügt (oder aus dem
+    Papierkorb geholt) steht der Film mit Grabstein **und** als Titel in
+    derselben Antwort. Der Grabstein ist älter und gilt nicht mehr.
+    """
+    nexcrate.film(603)
+    nexcrate.film(604, name="Another Example")
+    weg = get_beschaffung(nex)
+    await weg.bestand_filme()
+
+    nexcrate.entfernt("movie", "tmdb:603")
+    nexcrate.film(603)
+
+    assert set(await weg.bestand_filme()) == {603, 604}
+
+
+async def test_entfernt_und_wieder_da_ueber_zwei_seiten(
+    nex: Any, nexcrate: FakeNexcrate, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Grabstein auf der einen Seite, der Titel auf der nächsten."""
+    monkeypatch.setattr(nex_bestand, "SEITE", 1)
+    nexcrate.film(603)
+    nexcrate.film(604, name="Another Example")
+    weg = get_beschaffung(nex)
+    await weg.bestand_filme()
+
+    nexcrate.entfernt("movie", "tmdb:603")
+    nexcrate.film(603)
+    vorher = len(nexcrate.calls)
+
+    assert set(await weg.bestand_filme()) == {603, 604}
+    seiten = [k for k in nexcrate.calls[vorher:] if k[1].endswith("/titles")]
+    assert len(seiten) == 2, "Grabstein und Titel kamen nicht auf zwei Seiten"
+
+
 async def test_eine_andere_installation_laesst_ganz_neu_lesen(
     nex: Any, nexcrate: FakeNexcrate
 ) -> None:

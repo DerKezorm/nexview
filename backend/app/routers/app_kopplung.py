@@ -21,7 +21,6 @@ from typing import Annotated
 from urllib.parse import quote
 
 import segno
-
 from fastapi import APIRouter, Header, HTTPException, status
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field

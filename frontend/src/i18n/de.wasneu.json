@@ -717,6 +717,18 @@
           "Wer sich abmeldete und sofort wieder anmeldete, landete manchmal trotz gelungener Anmeldung wieder auf der Anmeldeseite. Eine neue Anmeldung wartet jetzt, bis die Abmeldung durch ist.",
           "Wer sich abmeldete und sofort neu lud oder den Tab schloss, war danach wieder angemeldet. Die Anmeldeseite erscheint jetzt erst, wenn der Server die Abmeldung bestätigt hat."
         ]
+      },
+      "1.2.1": {
+        "lead": "Eine Reparatur für alle, die Nexview mit nexcrate betreiben: Ein Film oder eine Serie, die nexcrate entfernt und wieder aufgenommen hat, verschwindet nicht mehr aus Nexview.",
+        "sections": [
+          {
+            "title": "Entfernt und wieder da",
+            "where": "Bibliothek, Kacheln und Titelseite im Betrieb mit nexcrate",
+            "body": "Wurde ein Titel in nexcrate entfernt und vor Nexviews nächstem Blick wieder hinzugefügt oder aus dem Papierkorb zurückgeholt, meldete nexcrate beides auf einmal: einmal entfernt, einmal vorhanden. Nexview wandte die Entfernung zuletzt an und verlor den Titel, bis es die Bibliothek das nächste Mal ganz las. Jetzt zählt die Reihenfolge, in der nexcrate die Änderungen nummeriert, und die ältere Entfernung gewinnt nicht mehr."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": []
       }
     }
   }

@@ -717,6 +717,18 @@
           "Signing out and straight back in could land you on the sign-in page again although the sign-in had worked. A new sign-in now waits until the sign-out is through.",
           "Signing out and reloading or closing the tab straight away left you signed in. The sign-in page now appears only once the server has confirmed the sign-out."
         ]
+      },
+      "1.2.1": {
+        "lead": "A repair for everyone running Nexview with nexcrate: a movie or series that nexcrate removed and took back no longer vanishes from Nexview.",
+        "sections": [
+          {
+            "title": "Removed and back again",
+            "where": "Library, cards and title page when running with nexcrate",
+            "body": "When a title was removed in nexcrate and added again, or restored from the recycle bin, before Nexview's next look, nexcrate reported both at once: removed once, present once. Nexview applied the removal last and lost the title until it next read the whole library. Now the order in which nexcrate numbers its changes counts, and the older removal no longer wins."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": []
       }
     }
   }

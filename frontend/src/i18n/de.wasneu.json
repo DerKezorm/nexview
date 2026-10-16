@@ -729,6 +729,26 @@
         ],
         "smallTitle": "Außerdem",
         "small": []
+      },
+      "1.3.0": {
+        "lead": "Für die kommende iPhone-App von nexview: Du verbindest sie mit einem QR-Code, und Eltern verbinden das Gerät ihres Kindes. Die App fragt an, gibt frei und zeigt die Wünsche der Kinder, mit denselben Rechten und Kontingenten wie im Browser.",
+        "sections": [
+          {
+            "title": "iPhone-App verbinden",
+            "where": "Profil → Konto → Sicherheit",
+            "body": "Ein Knopf zeigt einen QR-Code, den die App scannt. Sie holt sich damit einmal einen eigenen Schlüssel mit genau deinen Rechten; er steht danach unter API-Token und lässt sich dort jederzeit widerrufen. Ein Code gilt zehn Minuten und für ein Gerät, und wenn ihn niemand scannt, bleibt nichts zurück."
+          },
+          {
+            "title": "Das Gerät des Kindes",
+            "where": "Profil → Kinder, beim Bearbeiten eines Kinderkontos",
+            "body": "„Gerät verbinden“ zeigt einen Code für das iPad deines Kindes. Das Gerät meldet sich mit dem Kinderkonto an und sieht genau das, was dein Kind im Browser sieht: Rubriken, Suche, Wünsche. Darunter stehen die verbundenen Geräte, und „Trennen“ wirft eines sofort hinaus. Ein neues Passwort trennt die Geräte nicht."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Adresse im Code ist die öffentliche Adresse aus den Einstellungen; ohne sie die, unter der du nexview gerade im Browser siehst.",
+          "Für die App gibt es eine eigene Schnittstelle unter /api/app/1. Für eigene Anbindungen bleibt /api/v1 die beschriebene Schnittstelle."
+        ]
       }
     }
   }

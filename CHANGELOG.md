@@ -12,6 +12,25 @@ tag exists for it.
 
 ---
 
+## 1.3.0 – 16.10.2026
+
+### Added
+
+- **Connect the nexview iPhone app with a QR code.** Under Profile, Account, Security,
+  "Connect the iPhone app" shows a code the app scans. The app fetches its own key once, with
+  exactly the rights of your account; it then stands under API tokens like any other
+  and can be revoked there. A code lives ten minutes, works for one device, and leaves
+  nothing behind if nobody scans it. The address in the code is the public address
+  from Settings, or the one your browser uses.
+- **Parents connect their child's device.** Under Profile, Children, each child account
+  has "Connect a device" and a list of its devices. The device signs in as the child
+  and sees exactly what the child sees in the browser: categories, search, wishes.
+  Child accounts still cannot create keys themselves.
+- **`/api/app/1`, the surface of the iPhone app.** The same handlers as the web
+  interface under a second address, held by its own promise test, so an app already
+  on a phone keeps working when the server updates. It is meant for the app; for your
+  own integrations `/api/v1` stays the documented interface.
+
 ## 1.2.1 – 16.10.2026
 
 ### Fixed

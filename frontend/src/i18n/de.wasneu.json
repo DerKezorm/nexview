@@ -750,6 +750,25 @@
           "Für die App gibt es eine eigene Schnittstelle unter /api/app/1. Für eigene Anbindungen bleibt /api/v1 die beschriebene Schnittstelle."
         ]
       }
+    },
+    "1.4.0": {
+      "lead": "Die iPhone-App von nexview wird zum Werkzeug für den Alltag: Administratoren erledigen dort den täglichen Betrieb, alle anderen haben Glocke, Kalender, Merkliste, Tickets und Bewertungen in der Tasche. nexview stellt dafür die Schnittstelle bereit; im Browser ändert sich nichts.",
+      "sections": [
+        {
+          "title": "Betrieb in der App",
+          "where": "iPhone-App → Betrieb (nur Administratoren)",
+          "body": "Was das Admin-Dashboard zeigt, steht auch in der App: wartende Freigaben, Befunde, Datenträger. Dazu hängende Downloads mit denselben Knöpfen wie im Browser, Benutzer mit Rolle und Kontingenten, Einladungen, Rückmeldungen, Sperrliste, Papierkorb und die Abgaben (Ins Haus, Löschen, Nicht mehr folgen). Eingerichtet wird weiter im Browser."
+        },
+        {
+          "title": "Für alle in der App",
+          "where": "iPhone-App",
+          "body": "Die Glocke mit deinen Benachrichtigungen, der Kalender, deine Plex-Merkliste, „Mag ich“, Tickets samt Antworten und „Wie war die Qualität?“ auf Titeln, die da sind. Speicher gibst du in der App ab, und Entdecken zeigt dieselben Regale wie Stöbern im Browser."
+        }
+      ],
+      "smallTitle": "Außerdem",
+      "small": [
+        "Was die App über /api/app/1 ändert, prüft nexview genauso wie im Browser: Das Konto des Betreibers bleibt auch dort geschützt, Kontingente und Rechte gelten unverändert."
+      ]
     }
   }
 }

@@ -12,6 +12,20 @@ tag exists for it.
 
 ---
 
+## 1.4.0 – 17.10.2026
+
+### Added
+
+- **The daily work in the iPhone app.** `/api/app/1` now also carries what an administrator
+  does every day: the dashboard (counters, findings, disk), stuck downloads with their
+  actions (choose a file, retry, remove and search again, remove), users (role, quotas,
+  active, resetting quota and storage), invitations, feedback and replies, the blocklist,
+  the recycle bin, and the decision on given-up titles (to the house, delete, stop
+  following). Setting things up stays in the browser.
+- **The everyday parts for everyone.** The bell, the calendar, hearts, the Plex watchlist,
+  tickets with replies, ratings, giving up storage and taking it back, and the shelves of
+  Browse, all under `/api/app/1`.
+
 ## 1.3.0 – 16.10.2026
 
 ### Added

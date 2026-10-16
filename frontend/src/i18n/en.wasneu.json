@@ -750,6 +750,25 @@
           "The app has its own interface under /api/app/1. For your own integrations /api/v1 stays the documented interface."
         ]
       }
+    },
+    "1.4.0": {
+      "lead": "The nexview iPhone app becomes a tool for every day: administrators handle the daily work there, everyone else carries the bell, the calendar, the watchlist, tickets and ratings in their pocket. nexview provides the interface for it; nothing changes in the browser.",
+      "sections": [
+        {
+          "title": "Operations in the app",
+          "where": "iPhone app → Operations (administrators only)",
+          "body": "What the admin dashboard shows is in the app too: waiting approvals, findings, disk. Along with stuck downloads with the same buttons as in the browser, users with role and quotas, invitations, feedback, the blocklist, the recycle bin and give-ups (to the house, delete, stop following). Setting things up stays in the browser."
+        },
+        {
+          "title": "For everyone in the app",
+          "where": "iPhone app",
+          "body": "The bell with your notifications, the calendar, your Plex watchlist, “Like”, tickets with their replies, and “How was the quality?” on titles that are there. You give up storage in the app, and Discover shows the same shelves as Browse in the web."
+        }
+      ],
+      "smallTitle": "Also",
+      "small": [
+        "What the app changes through /api/app/1 is checked exactly as in the browser: the operator's account stays protected there too, quotas and rights apply unchanged."
+      ]
     }
   }
 }

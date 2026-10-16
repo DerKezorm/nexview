@@ -39,7 +39,28 @@ from .. import __version__
 from ..deps import CurrentUser, DbSession
 from ..models import User
 from ..services.settings_service import load_settings
-from . import admin_requests, children, discover, hausordnung, home, kids, requests, storage
+from . import (
+    admin_requests,
+    beschaffung,
+    blocklist,
+    calendar,
+    children,
+    dashboard,
+    discover,
+    downloads,
+    favorites,
+    feedback,
+    hausordnung,
+    home,
+    kids,
+    notifications,
+    requests,
+    stoebern,
+    storage,
+    tickets,
+    users,
+    watchlist,
+)
 from .settings import FassungOeffentlich, _fassungen_oeffentlich, _hausordnung_stand
 
 router = APIRouter(prefix="/api/app/1", tags=["app"])
@@ -65,6 +86,10 @@ def _zweitschrift(
         response_model=original.response_model,
         status_code=original.status_code,
         responses=original.responses,
+        # ⚠️ **Die Wachen der Route wandern mit.** ``update_user`` traegt
+        # ``betreiberschutz`` am Dekorator, nicht am Handler; ohne diese Zeile
+        # stuende der Betreiber in der App ungeschuetzt da.
+        dependencies=list(original.dependencies),
         summary=summary,
         description=f"Same as `{methode} {original.path}` in the web interface, for the iPhone app.",
     )
@@ -240,6 +265,86 @@ _zweitschrift(
     "Decline a wish",
 )
 
+# --- Block 2: der taegliche Betrieb fuer alle ---------------------------------
+
+_zweitschrift(router, "/notifications", notifications.router, notifications.list_notifications, "GET",
+              "Your notifications")
+_zweitschrift(router, "/notifications/unread/count", notifications.router, notifications.unread_count, "GET",
+              "Number of unread notifications")
+_zweitschrift(router, "/notifications/{notification_id}/read", notifications.router, notifications.mark_read, "POST",
+              "Mark one notification read")
+_zweitschrift(router, "/notifications/read-all", notifications.router, notifications.mark_all_read, "POST",
+              "Mark all notifications read")
+# Entdecken wie im Web: die Regale aus "Stoebern" statt einer rohen TMDB-Liste.
+_zweitschrift(router, "/browse/shelves/{media_type}", stoebern.router, stoebern.regale, "GET", "Shelves to browse")
+_zweitschrift(router, "/browse/shelf/{media_type}/{kennung}", stoebern.router, stoebern.regal, "GET",
+              "One shelf of titles")
+_zweitschrift(router, "/calendar", calendar.router, calendar.kalender, "GET", "What comes out when")
+_zweitschrift(router, "/favorites", favorites.router, favorites.my_favorites, "GET", "Titles you like")
+_zweitschrift(router, "/favorites", favorites.router, favorites.add_favorite, "POST", "Like a title")
+_zweitschrift(router, "/favorites/{media_type}/{tmdb_id}", favorites.router, favorites.remove_favorite, "DELETE",
+              "Stop liking a title")
+_zweitschrift(router, "/watchlist/status", watchlist.router, watchlist.verbindung, "GET",
+              "Whether the Plex watchlist is available")
+_zweitschrift(router, "/watchlist/plex", watchlist.router, watchlist.plex_merkliste, "GET", "Your Plex watchlist")
+_zweitschrift(router, "/tickets", tickets.router, tickets.meine_tickets, "GET", "Your tickets")
+_zweitschrift(router, "/tickets", tickets.router, tickets.anlegen, "POST", "Open a ticket")
+_zweitschrift(router, "/tickets/open-count", tickets.router, tickets.offene_anzahl, "GET", "Number of open tickets")
+_zweitschrift(router, "/tickets/{ticket_id}", tickets.router, tickets.einzeln, "GET", "One ticket with its messages")
+_zweitschrift(router, "/tickets/{ticket_id}/messages", tickets.router, tickets.antworten, "POST",
+              "Answer in a ticket")
+_zweitschrift(router, "/ratings/mine", feedback.router, feedback.meine_bewertungen, "GET", "Your quality ratings")
+_zweitschrift(router, "/ratings/{media_type}/{tmdb_id}", feedback.router, feedback.bewerten, "PUT",
+              "Rate the quality of a title")
+_zweitschrift(router, "/storage/entries/{posten_id}/give-up", storage.router, storage.abgeben, "POST",
+              "Give a title up")
+_zweitschrift(router, "/storage/entries/{posten_id}/keep", storage.router, storage.zuruecknehmen, "POST",
+              "Keep a title after all")
+
+# --- Block 2: der Betrieb fuer Administratoren -----------------------------
+
+_zweitschrift(router, "/admin/dashboard", dashboard.router, dashboard.dashboard, "GET", "The operator's overview")
+_zweitschrift(router, "/admin/downloads", downloads.router, downloads.uebersicht, "GET",
+              "What is stuck and what is loading")
+_zweitschrift(router, "/admin/downloads/{haenger_id}/files", downloads.router, downloads.dateien, "GET",
+              "Files of a stuck download")
+_zweitschrift(router, "/admin/downloads/{haenger_id}/import", downloads.router, downloads.importieren, "POST",
+              "Import a chosen file")
+_zweitschrift(router, "/admin/downloads/{haenger_id}/retry", downloads.router, downloads.erneut, "POST",
+              "Try a stuck download again")
+_zweitschrift(router, "/admin/downloads/{haenger_id}/remove", downloads.router, downloads.entfernen, "POST",
+              "Remove a stuck download")
+_zweitschrift(router, "/admin/users", users.router, users.list_users, "GET", "All accounts")
+_zweitschrift(router, "/admin/users/{user_id}", users.router, users.update_user, "PATCH", "Change an account")
+_zweitschrift(router, "/admin/users/{user_id}/quota/reset", users.router, users.reset_quota, "POST",
+              "Reset an account's request count")
+_zweitschrift(router, "/admin/users/{user_id}/storage/reset", users.router, users.reset_storage, "POST",
+              "Move an account's titles to the house")
+_zweitschrift(router, "/admin/invitations", users.router, users.list_invitations, "GET", "Open invitations")
+_zweitschrift(router, "/admin/invitations", users.router, users.invite, "POST", "Invite someone")
+_zweitschrift(router, "/admin/invitations/{invitation_id}", users.router, users.withdraw_invitation, "DELETE",
+              "Withdraw an invitation")
+_zweitschrift(router, "/admin/ratings", feedback.router, feedback.alle, "GET", "All quality ratings")
+_zweitschrift(router, "/admin/ratings/{rating_id}/reply", feedback.router, feedback.antworten, "POST",
+              "Answer a quality rating")
+_zweitschrift(router, "/admin/tickets/{ticket_id}", tickets.router, tickets.status_aendern, "PATCH",
+              "Set a ticket's state")
+_zweitschrift(router, "/admin/blocklist", blocklist.router, blocklist.alle_gesperrten, "GET", "The blocklist")
+_zweitschrift(router, "/admin/blocklist/{media_type}/{tmdb_id}", blocklist.router, blocklist.freigeben, "DELETE",
+              "Take a title off the blocklist")
+_zweitschrift(router, "/admin/trash", beschaffung.router, beschaffung.papierkorb, "GET", "nexcrate's recycle bin")
+_zweitschrift(router, "/admin/trash/{eintrag_id}/restore", beschaffung.router, beschaffung.zurueckholen, "POST",
+              "Restore from the recycle bin")
+_zweitschrift(router, "/admin/releases", storage.router, storage.abgaben, "GET", "Titles given up, waiting")
+_zweitschrift(router, "/admin/releases/{posten_id}/files", storage.router, storage.loeschvorschau, "GET",
+              "Files a deletion would remove")
+_zweitschrift(router, "/admin/releases/{posten_id}/house", storage.router, storage.in_den_hausbestand, "POST",
+              "Move a given-up title to the house")
+_zweitschrift(router, "/admin/releases/{posten_id}/delete", storage.router, storage.loeschen, "POST",
+              "Delete a given-up title")
+_zweitschrift(router, "/admin/releases/{posten_id}/unfollow", storage.router, storage.entfolgen, "POST",
+              "Keep a given-up title, stop loading it")
+
 # --- Kinder -----------------------------------------------------------------
 
 _zweitschrift(kids_router, "/categories", kids.router, kids.read_categories, "GET", "Categories for a child")
@@ -283,4 +388,48 @@ ZUGESAGT = (
     "/api/app/1/kids/search",
     "/api/app/1/kids/title/{media_type}/{tmdb_id}",
     "/api/app/1/kids/wishes",
+    # Block 2 (vertrag-block2.md)
+    "/api/app/1/notifications",
+    "/api/app/1/notifications/unread/count",
+    "/api/app/1/notifications/{notification_id}/read",
+    "/api/app/1/notifications/read-all",
+    "/api/app/1/browse/shelves/{media_type}",
+    "/api/app/1/browse/shelf/{media_type}/{kennung}",
+    "/api/app/1/calendar",
+    "/api/app/1/favorites",
+    "/api/app/1/favorites/{media_type}/{tmdb_id}",
+    "/api/app/1/watchlist/status",
+    "/api/app/1/watchlist/plex",
+    "/api/app/1/tickets",
+    "/api/app/1/tickets/open-count",
+    "/api/app/1/tickets/{ticket_id}",
+    "/api/app/1/tickets/{ticket_id}/messages",
+    "/api/app/1/ratings/mine",
+    "/api/app/1/ratings/{media_type}/{tmdb_id}",
+    "/api/app/1/storage/entries/{posten_id}/give-up",
+    "/api/app/1/storage/entries/{posten_id}/keep",
+    "/api/app/1/admin/dashboard",
+    "/api/app/1/admin/downloads",
+    "/api/app/1/admin/downloads/{haenger_id}/files",
+    "/api/app/1/admin/downloads/{haenger_id}/import",
+    "/api/app/1/admin/downloads/{haenger_id}/retry",
+    "/api/app/1/admin/downloads/{haenger_id}/remove",
+    "/api/app/1/admin/users",
+    "/api/app/1/admin/users/{user_id}",
+    "/api/app/1/admin/users/{user_id}/quota/reset",
+    "/api/app/1/admin/users/{user_id}/storage/reset",
+    "/api/app/1/admin/invitations",
+    "/api/app/1/admin/invitations/{invitation_id}",
+    "/api/app/1/admin/ratings",
+    "/api/app/1/admin/ratings/{rating_id}/reply",
+    "/api/app/1/admin/tickets/{ticket_id}",
+    "/api/app/1/admin/blocklist",
+    "/api/app/1/admin/blocklist/{media_type}/{tmdb_id}",
+    "/api/app/1/admin/trash",
+    "/api/app/1/admin/trash/{eintrag_id}/restore",
+    "/api/app/1/admin/releases",
+    "/api/app/1/admin/releases/{posten_id}/files",
+    "/api/app/1/admin/releases/{posten_id}/house",
+    "/api/app/1/admin/releases/{posten_id}/delete",
+    "/api/app/1/admin/releases/{posten_id}/unfollow",
 )

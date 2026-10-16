@@ -48,6 +48,13 @@ def test_jede_zugesagte_adresse_hat_eine_antwortform() -> None:
         "POST /api/app/1/house-rules/decision",
         "POST /api/app/1/wishes/{wish_id}/decline",
         "GET /api/app/1/approvals/count",
+        # Block 2: Antworten ohne Koerper (204) oder ein schlichtes Ja.
+        "DELETE /api/app/1/admin/blocklist/{media_type}/{tmdb_id}",
+        "DELETE /api/app/1/admin/invitations/{invitation_id}",
+        "DELETE /api/app/1/favorites/{media_type}/{tmdb_id}",
+        "POST /api/app/1/admin/releases/{posten_id}/delete",
+        "POST /api/app/1/notifications/read-all",
+        "POST /api/app/1/notifications/{notification_id}/read",
     }
     assert set(ohne) <= erlaubt_leer, f"Ohne festgehaltene Felder: {sorted(set(ohne) - erlaubt_leer)}"
 

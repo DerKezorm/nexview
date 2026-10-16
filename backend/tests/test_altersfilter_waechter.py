@@ -295,6 +295,14 @@ OHNE_PROBE: dict[str, str] = {
         "Altersfilter ist ``test_watchlist.py`` und der Abfragen-Waage bekannt; "
         "eine Attrappe dafuer gehoert dorthin, nicht hierher."
     ),
+    "GET /api/app/1/watchlist/plex": (
+        "Derselbe Handler wie /api/watchlist/plex darueber, unter der Adresse der "
+        "iPhone-App - dieselbe Ueberlegung."
+    ),
+    "GET /api/app/1/browse/shelf/{media_type}/{kennung}": (
+        "Derselbe Handler wie /api/stoebern/regal darueber, unter der Adresse der "
+        "iPhone-App - dieselbe Ueberlegung."
+    ),
     "GET /api/kids/rubrik/{rubrik}": (
         "Die Kinderansicht siebt nicht ueber ``_darf_sehen``, sondern ueber die "
         "Freigabe-Abfrage an TMDB (``kids.erlaubte_freigaben``) samt Nachfilter. "

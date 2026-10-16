@@ -109,6 +109,21 @@ OHNE_SCHUTZ: dict[str, str] = {
         "Derselbe Handler wie approve-all darueber, unter der Adresse der "
         "iPhone-App - dieselbe Entscheidung."
     ),
+    "POST /api/app/1/tickets": (
+        "Derselbe Handler wie POST /api/tickets darueber, unter der Adresse der iPhone-App - dieselbe Entscheidung."
+    ),
+    "POST /api/app/1/admin/ratings/{rating_id}/reply": (
+        "Derselbe Handler wie POST /api/feedback/{rating_id}/reply darueber, unter der Adresse der iPhone-App - dieselbe Entscheidung."
+    ),
+    "POST /api/app/1/admin/releases/{posten_id}/house": (
+        "Derselbe Handler wie POST /api/storage/entries/{posten_id}/haus darueber, unter der Adresse der iPhone-App - dieselbe Entscheidung."
+    ),
+    "POST /api/app/1/admin/releases/{posten_id}/delete": (
+        "Derselbe Handler wie POST /api/storage/entries/{posten_id}/loeschen darueber, unter der Adresse der iPhone-App - dieselbe Entscheidung."
+    ),
+    "POST /api/app/1/admin/releases/{posten_id}/unfollow": (
+        "Derselbe Handler wie POST /api/storage/entries/{posten_id}/entfolgen darueber, unter der Adresse der iPhone-App - dieselbe Entscheidung."
+    ),
     "POST /api/users/betreiber/uebergeben": (
         "Der Traeger gibt selbst weiter, und ``user_id`` im Rumpf ist das "
         "**Ziel** der Uebergabe, nicht das geschuetzte Konto. Die Wache haenge "

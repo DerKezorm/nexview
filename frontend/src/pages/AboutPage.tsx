@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '../api/client'
 import type { AboutInfo, AppSettings, Neuigkeiten } from '../api/types'
 import { useAuth } from '../auth/useAuth'
+import tmdbLogo from '../assets/tmdb.svg'
 import { Logo } from '../components/Logo'
 import { Button, Card, ErrorBanner, Spinner } from '../components/ui'
 import { WasNeuFenster } from '../components/WasNeuFenster'
@@ -192,9 +193,14 @@ function Credits() {
         </p>
         <ul className="mt-2 flex flex-col gap-2 text-sm">
           <li>
+            {/* TMDB verlangt Logo und den Satz im Wortlaut, das Logo kleiner als das eigene. */}
+            <img src={tmdbLogo} alt="TMDB" width={108} height={14} className="mb-1.5 block h-3.5 w-auto" />
             <ExternalLink href="https://www.themoviedb.org">The Movie Database (TMDB)</ExternalLink>
             <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
               {t('about.tmdbNotice')}
+            </span>
+            <span lang="en" className="mt-0.5 block text-xs leading-relaxed text-mist-600">
+              {t('about.tmdbNoticeOfficial')}
             </span>
           </li>
           <li>

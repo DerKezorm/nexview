@@ -29,13 +29,13 @@ deciding anything.
 
 <div align="center">
 
-<img src="docs/screenshots/discover.webp" alt="The Nexview home page: rows of film posters under headings such as trending and curated for you" width="100%">
+<img src="docs/screenshots/discover.webp" alt="The Nexview home page: a trending film up top and a row of film posters below" width="100%">
 
 <sub>The home page. What each person marks as a favourite shapes what they get suggested.</sub>
 
 <br><br>
 
-<img src="docs/screenshots/request.webp" alt="A film's detail page with ratings, cast and an open request panel offering quality profile and target folder" width="49%">
+<img src="docs/screenshots/request.webp" alt="A film's detail page with rating, details and an open request panel offering quality profile and target folder" width="49%">
 <img src="docs/screenshots/child-view.webp" alt="The children's view: large colourful category tiles for animation, family, adventure and comedy" width="49%">
 
 <sub>Requesting a title, and the same installation seen by a child.</sub>
@@ -913,7 +913,10 @@ the wizard again.
 
 ## Credits
 
-Metadata comes from **TMDB**. This project is neither endorsed nor certified by TMDB.
+<img src="docs/tmdb.svg" alt="TMDB" height="14">
+
+Metadata comes from **[TMDB](https://www.themoviedb.org)**. This product uses the TMDB API but is not
+endorsed or certified by TMDB.
 
 Sign-in, library matching and the watched state run through **Plex**, when a server is
 connected. Nexview is neither endorsed by nor affiliated with Plex.

@@ -33,7 +33,7 @@ REQUIRES_CODE = True
 # Das Bild neben dem Absendernamen. Discord laedt es selbst herunter, die
 # Adresse muss also oeffentlich erreichbar sein - die eigene Instanz haengt
 # meist im Heimnetz, deshalb liegt das Logo auf der Projektseite.
-AVATAR_URL = "https://nexview.nexapps.dev/assets/img/icon-192.png"
+AVATAR_URL = "https://raw.githubusercontent.com/DerKezorm/nexview/main/frontend/public/icon-192.png"
 
 # Farben je Meldung, wie Discord sie als Zahl erwartet. Was nicht aufgefuehrt
 # ist (auch die Testnachricht), bekommt Discords eigenes Blau.

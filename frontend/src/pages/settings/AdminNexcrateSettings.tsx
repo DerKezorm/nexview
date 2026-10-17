@@ -205,9 +205,9 @@ export function AdminNexcrateSettings({ zumUmstieg }: { zumUmstieg?: () => void 
 
           {/* ⚠️ Eigene Zeile, unabhängig von "erreichbar": Das Recht ist eine
               reine Nexview-Einstellung, `PUT /api/settings/fassungen` fragt
-              nexcrate nie. Ein unabhängiger Prüfer fand den Kasten vorher im
-              Erreichbar-Zweig - genau bei einer Störung hätte der Betreiber
-              eine offene Fassung dann nicht mehr schließen können. */}
+              nexcrate nie. Im Erreichbar-Zweig wäre der Kasten genau bei einer
+              Störung weg, und der Betreiber könnte eine offene Fassung nicht
+              mehr schließen. */}
           {modus === "nex" && rechteFassungen.length > 0 && (
             <FassungsRechte
               fassungen={rechteFassungen}

@@ -674,7 +674,7 @@ describe('Umstiegsassistent: Reload während des Umstiegs (C6)', () => {
   })
 
   it('übersteht ein Aushängen, das kein Abbrechen ist (Reiterwechsel weg und zurück, kein Reload)', async () => {
-    // ⚠️ Befund des unabhängigen Prüfers: `AdminUmstieg` hängt nur, solange
+    // ⚠️ `AdminUmstieg` hängt nur, solange
     // der Unterreiter „Umstieg" gewählt ist. Ein Klick auf einen anderen
     // Unterreiter und zurück hängt die Komponente aus und wieder ein - das
     // ist kein „Abbrechen", und darf deshalb nichts löschen.

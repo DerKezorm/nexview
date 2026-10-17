@@ -33,10 +33,6 @@ dist-dev/
 # --- Editoren / Betriebssystem ---
 .vscode/
 .idea/
-# Werkzeug-Verzeichnis, kein Projektbestandteil. Die Startdatei darin traegt
-# Pfade dieses einen Rechners (unter Windows .venv/Scripts, sonst .venv/bin) -
-# eingecheckt waere sie fuer jeden anderen eine Vorlage, die nicht startet.
-.claude/
 .DS_Store
 Thumbs.db
 
@@ -45,14 +41,6 @@ data-sicherung*/
 
 # Zwischenstand der TypeScript-Pruefung - reines Bauartefakt.
 *.tsbuildinfo
-.ds-sync/
-ds-bundle/
-.design-sync/.cache/
-.design-sync/learnings/
-.design-sync/node_modules
-# Zeigt auf ein privates Claude-Design-Projekt - nicht in einen
-# oeffentlichen Repo.
-.design-sync/projekt-kennung.txt
 
 # Der Ende-zu-Ende-Test legt sich sein eigenes Datenverzeichnis an - eine
 # leere Datenbank je Lauf, damit der Einrichtungsassistent ueberhaupt

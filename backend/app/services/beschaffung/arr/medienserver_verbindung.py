@@ -234,7 +234,7 @@ def _passender_eintrag(vorhanden: list[dict], server: Medienserver) -> dict | No
     ist, meldet "Alle verbunden" und legt die fehlende Verbindung nie an.
     Genau so ist es passiert.
 
-    Der Name taugt als Merkmal nicht: "Nexview: Bizzy" kann jeder vergeben, und
+    Der Name taugt als Merkmal nicht: "Nexview: Wohnzimmer" kann jeder vergeben, und
     ein von Hand eingetragener Eintrag zum selben Server soll genauso zaehlen.
     """
     if server.provider not in BAUPLAN:
@@ -262,7 +262,7 @@ async def luecken(
 ) -> list[Luecke]:
     """Zu welchen Medienservern fehlt dieser Instanz eine Verbindung?
 
-    Erkannt wird an Anbieter **und Adresse** - nicht am Namen: "Nexview: Bizzy"
+    Erkannt wird an Anbieter **und Adresse** - nicht am Namen: "Nexview: Wohnzimmer"
     kann jeder vergeben, und ein von Hand eingetragener Eintrag zum selben
     Server zaehlt genauso. Zweimal dasselbe einzutragen brächte nur doppelte
     Anrufe.

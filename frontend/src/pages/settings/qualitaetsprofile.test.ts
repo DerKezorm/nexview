@@ -27,7 +27,7 @@ describe('Anzeigename eines Medienservers', () => {
   })
 
   it('behält echte Namen bei', () => {
-    expect(anzeigename('plex', 'Bizzy')).toBe('Plex (Bizzy)')
+    expect(anzeigename('plex', 'Wohnzimmer')).toBe('Plex (Wohnzimmer)')
     expect(anzeigename('jellyfin', 'Wohnzimmer')).toBe('Jellyfin (Wohnzimmer)')
   })
 

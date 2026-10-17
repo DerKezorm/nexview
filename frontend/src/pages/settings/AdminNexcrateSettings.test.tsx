@@ -362,7 +362,7 @@ describe('Dienste-Seite für nexcrate', () => {
     })
 
     it('bleibt sichtbar, wenn nexcrate gerade nicht erreichbar ist - das Recht ist eine reine Nexview-Einstellung', async () => {
-      // ⚠️ Befund eines unabhängigen Prüfers: Der Kasten steckte vorher im
+      // ⚠️ Der Kasten steckte vorher im
       // "erreichbar"-Zweig und verschwand mit der Verbindung, obwohl
       // `PUT /api/settings/fassungen` nexcrate nie fragt. Gerade bei einer
       // Störung soll der Betreiber eine offene Fassung noch schließen können.

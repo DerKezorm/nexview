@@ -1,6 +1,6 @@
 """Beim Loeschen eines Kontos: der Zugang auf den Medienservern (``services/serverkonten``).
 
-Entschieden am 12. und 13.09.2026: Der Administrator wird gefragt. Vorausgewaehlt
+Der Administrator wird gefragt. Vorausgewaehlt
 ist nur, was eine Nexview-Einladung angelegt hat. Wo Nexview nur freigibt, endet
 die Freigabe dieses Servers. Scheitert ein Server, bricht das Loeschen ab, bevor
 Bestand und Konto angefasst werden.

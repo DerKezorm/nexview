@@ -682,8 +682,7 @@ def bauplan_aus(
         # ein deutsches 720p-Release mit mehr Punkten ersetzt eine 1080p-Datei.
         # So ersetzte Sonarr am 14. und 15.09.2026 bei einem Besitzer 405
         # Folgen durch 720p. Mit "erst nehmen" bleibt das TRaSHs Absicht; wer
-        # warten will, bekommt 720p nicht. Entschieden am 16.09.2026 fuer
-        # nexcrate (Entscheidung 10 der Serien), am 18.09.2026 uebernommen.
+        # warten will, bekommt 720p nicht.
         grenze = int(aufloesung[:-1])
         gefiltert = [
             [q for q in stufe if not aufloesung_von(q) or _aufloesung_zahl(q) >= grenze]

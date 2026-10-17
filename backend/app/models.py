@@ -1385,7 +1385,7 @@ class MediaServerConnection(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     provider: Mapped[str] = mapped_column(String(20), nullable=False)
     machine_id: Mapped[str] = mapped_column(String(64), nullable=False)
-    # Nur zur Anzeige - "Bizzy" liest sich besser als eine Kennung.
+    # Nur zur Anzeige - "Wohnzimmer" liest sich besser als eine Kennung.
     name: Mapped[str] = mapped_column(String(120), default="", nullable=False)
     url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     # Verschluesselt, wie alle Zugaenge. Steht als Text da, weil die

@@ -2,13 +2,11 @@
 #
 # Personenbezogene Angaben aufhalten - vor dem Push, nicht danach.
 #
-# ⚠️ Warum hier und nicht nur in der CI. Am 02.09.2026 stand der volle Name
-# einer angehoerigen Person seit Wochen im oeffentlichen Repository, dazu zwei
-# echte Konto-Kennungen. Die CI laeuft nach dem Push: Was sie meldet, steht
-# schon in der Historie, und dort bekommt man es nur mit Umschreiben wieder
-# heraus - was jeden Klon bricht und die alten Objekte trotzdem noch eine
-# Weile ueber die GitHub-Oberflaeche erreichbar laesst. Dieser Haken laeuft
-# davor, und deshalb ist er der wichtigere Teil.
+# ⚠️ Warum hier und nicht nur in der CI. Die CI laeuft nach dem Push: Was sie
+# meldet, steht schon in der Historie, und dort bekommt man es nur mit
+# Umschreiben wieder heraus - was jeden Klon bricht und die alten Objekte
+# trotzdem noch eine Weile ueber die GitHub-Oberflaeche erreichbar laesst.
+# Dieser Haken laeuft davor, und deshalb ist er der wichtigere Teil.
 #
 # Aktivieren (einmal je Klon, sonst hat ihn nur ein Rechner):
 #

@@ -32,7 +32,7 @@ export type TileState = {
   /** Kennt diese Fassung den Anbieter überhaupt? Sonst ausgegraut. */
   available: boolean
   connected: boolean
-  /** Name des Servers – „Bizzy" sagt mehr als eine Adresse. */
+  /** Name des Servers – „Wohnzimmer" sagt mehr als eine Adresse. */
   serverName?: string | null
   /** Mit welchem Konto Nexview dort angemeldet ist. */
   account?: string | null

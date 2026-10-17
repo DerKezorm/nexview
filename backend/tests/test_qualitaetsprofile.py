@@ -1082,13 +1082,13 @@ async def test_verbindung_wird_erst_geprueft_dann_eingetragen(monkeypatch) -> No
     monkeypatch.setattr(ArrClient, "notification_anlegen", anlegen)
     client = ArrClient("http://x", "k", "Radarr")
 
-    grund = await mv.herstellen(client, "jellyfin", "Bizzy", "http://10.0.0.5:8096", "s")
+    grund = await mv.herstellen(client, "jellyfin", "Wohnzimmer", "http://10.0.0.5:8096", "s")
     assert grund == "unreachable"
     assert geprueft, "es wurde geprueft"
     assert angelegt == [], "und nichts eingetragen"
 
     scheitern["ja"] = False
-    grund = await mv.herstellen(client, "jellyfin", "Bizzy", "http://10.0.0.5:8096", "s")
+    grund = await mv.herstellen(client, "jellyfin", "Wohnzimmer", "http://10.0.0.5:8096", "s")
     assert grund == ""
     assert len(angelegt) == 1
     eintrag = angelegt[0]

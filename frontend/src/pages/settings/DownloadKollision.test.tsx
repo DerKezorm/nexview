@@ -39,8 +39,8 @@ const senden = vi.mocked(api.post)
 
 function treffer(teil: Partial<Treffer> = {}): Treffer {
   return {
-    schluessel: 'Sabnzbd|10.10.10.109:8080||movies|radarr-standard+radarr-uhd',
-    programm: 'Sabnzbd auf 10.10.10.109:8080',
+    schluessel: 'Sabnzbd|192.168.1.10:8080||movies|radarr-standard+radarr-uhd',
+    programm: 'Sabnzbd auf 192.168.1.10:8080',
     kategorie: 'movies',
     ohne_kategorie: false,
     instanzen: ['Radarr FHD', 'Radarr 4K'],
@@ -71,7 +71,7 @@ describe('wenn zwei Instanzen dieselbe Kategorie benutzen', () => {
 
     const kopf = await screen.findByText(/Radarr FHD · Radarr 4K/)
     expect(kopf.textContent).toContain('movies')
-    expect(kopf.textContent).toContain('Sabnzbd auf 10.10.10.109:8080')
+    expect(kopf.textContent).toContain('Sabnzbd auf 192.168.1.10:8080')
   })
 
   it('beschreibt die Symptome, nicht nur die Ursache', async () => {
@@ -138,7 +138,7 @@ describe('wegklicken', () => {
     await waitFor(() =>
       expect(senden).toHaveBeenCalledWith(
         '/api/settings/instanzen/downloadkollision/ignorieren',
-        { schluessel: 'Sabnzbd|10.10.10.109:8080||movies|radarr-standard+radarr-uhd' },
+        { schluessel: 'Sabnzbd|192.168.1.10:8080||movies|radarr-standard+radarr-uhd' },
       ),
     )
   })

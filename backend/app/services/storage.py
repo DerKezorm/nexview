@@ -863,8 +863,8 @@ async def _erfassen(
                         # nirgends.
                         #
                         # ⚠️ **Nur im ARR-Betrieb.** Im NEX-Betrieb ist ``[]``
-                        # eine echte Antwort (nexview/CLAUDE.md, "Staffeln
-                        # kommen aus der Liste"); dort gilt bereits
+                        # eine echte Antwort (Staffeln kommen aus der
+                        # Liste); dort gilt bereits
                         # ``staffeln_gelesen`` fuer die Unterscheidung.
                         praefix = _serien_praefix(kennung, tvdb_id, eintrag)
                         if praefix:

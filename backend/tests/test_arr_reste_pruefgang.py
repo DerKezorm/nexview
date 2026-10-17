@@ -1,4 +1,4 @@
-"""Zwei Reste aus dem grossen Pruefgang, beide im Arr-Betrieb (nexbase #job-59, 28.09.2026).
+"""Zwei Reste, beide im Arr-Betrieb.
 
 * Ein angekommener Test-Anruf nimmt den gespeicherten Grund zurueck, den er gerade widerlegt hat. Vorher stand
   "Es fehlt eine Adresse" direkt ueber "Anruf kam an", bis die Pflege das naechste Mal lief.

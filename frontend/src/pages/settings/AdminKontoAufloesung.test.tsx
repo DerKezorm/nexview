@@ -1,7 +1,7 @@
 /**
  * Konto löschen: der Zugang auf den Medienservern.
  *
- * ⚠️ Entschieden am 13.09.2026: Vorausgewählt ist nur, was eine
+ * ⚠️ Vorausgewählt ist nur, was eine
  * Nexview-Einladung angelegt hat. Was nicht geht, lässt sich nicht anhaken und
  * sagt, warum. An den Server geht genau die Auswahl, nicht mehr.
  */

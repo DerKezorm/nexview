@@ -1,10 +1,8 @@
 """Der Waechter: Keine personenbezogene Angabe darf ins oeffentliche Repository.
 
-⚠️ **Warum es diese Datei gibt.** Am 02.09.2026 stand im oeffentlichen
-Repository der volle Name einer angehoerigen Person in zwoelf Zeilen, dazu zwei
-echte Konto-Kennungen eines Medienservers in neunzehn. Seit Wochen. Durch 2.500
-Tests und jede Pruefung hindurch, weil keiner dieser Tests danach gesucht hat.
-Aufgefallen ist es beim Nachsehen aus einem ganz anderen Anlass.
+⚠️ **Warum es diese Datei gibt.** Namen und Konto-Kennungen echter Personen
+laufen durch jeden gewoehnlichen Test hindurch, weil keiner danach sucht. Dieser
+hier sucht danach.
 
 Der Test ruft ``tools/personendaten_pruefen.py`` und faellt durch, sobald etwas
 gefunden wird. **Rot heisst nicht: eine Ausnahme nachtragen.** Rot heisst: eine

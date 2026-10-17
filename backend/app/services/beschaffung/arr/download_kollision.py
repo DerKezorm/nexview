@@ -57,7 +57,7 @@ class Bahn:
 
     #: Programmkennung zum Vergleichen: Art, Rechner, Anschluss.
     programm: str
-    #: Wie es dem Betreiber genannt wird - "SABnzbd auf 10.10.10.109:8080".
+    #: Wie es dem Betreiber genannt wird - "SABnzbd auf 192.168.1.10:8080".
     programm_name: str
     #: Leer heisst: keine Kategorie gesetzt (oder das Programm kennt keine).
     kategorie: str

@@ -2242,7 +2242,7 @@ export type QuotaOverview = {
 /** Ein verbundener Medienserver, wie ihn die Einstellungen ausliefern. */
 export interface MediaServerConnectionInfo {
   provider: string;
-  /** Wie der Server sich selbst nennt – „Bizzy" sagt mehr als eine Adresse. */
+  /** Wie der Server sich selbst nennt – „Wohnzimmer" sagt mehr als eine Adresse. */
   name: string;
   url: string;
 }
@@ -2558,7 +2558,7 @@ export interface QualitaetsprofilFortschritt {
 export interface DownloadKollision {
   /** Woran sie wiedererkannt wird - traegt die Beteiligten, fuers Wegklicken. */
   schluessel: string;
-  /** Lesbar, etwa "Sabnzbd auf 10.10.10.109:8080". */
+  /** Lesbar, etwa "Sabnzbd auf 192.168.1.10:8080". */
   programm: string;
   kategorie: string;
   /** Keine Kategorie gesetzt - der schwerere Fall. */

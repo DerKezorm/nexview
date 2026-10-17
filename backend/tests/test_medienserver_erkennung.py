@@ -29,29 +29,29 @@ def _eintrag(umsetzung: str, wirt: str, tor: int) -> dict:
     }
 
 
-JELLYFIN = _eintrag("MediaBrowser", "10.10.10.109", 8096)
-PLEX = _eintrag("PlexServer", "10.10.10.109", 32400)
+JELLYFIN = _eintrag("MediaBrowser", "192.168.1.10", 8096)
+PLEX = _eintrag("PlexServer", "192.168.1.10", 32400)
 
 
 def test_jellyfin_gilt_nicht_als_emby():
     """Der Kern: gleicher Wirt, gleiche Umsetzung, anderer Port."""
-    emby = _server("emby", "http://10.10.10.109:8097")
+    emby = _server("emby", "http://192.168.1.10:8097")
     assert _passender_eintrag([JELLYFIN, PLEX], emby) is None
 
 
 def test_jellyfin_erkennt_sich_selbst():
-    jellyfin = _server("jellyfin", "http://10.10.10.109:8096")
+    jellyfin = _server("jellyfin", "http://192.168.1.10:8096")
     assert _passender_eintrag([JELLYFIN, PLEX], jellyfin) is JELLYFIN
 
 
 def test_plex_wird_an_der_umsetzung_erkannt():
-    plex = _server("plex", "https://10.10.10.109:32400")
+    plex = _server("plex", "https://192.168.1.10:32400")
     assert _passender_eintrag([JELLYFIN, PLEX], plex) is PLEX
 
 
 def test_anderer_rechner_zaehlt_nicht():
     """Gleicher Port, anderer Wirt - das ist ein anderer Server."""
-    woanders = _server("jellyfin", "http://10.10.10.50:8096")
+    woanders = _server("jellyfin", "http://192.168.1.30:8096")
     assert _passender_eintrag([JELLYFIN], woanders) is None
 
 
@@ -61,8 +61,8 @@ def test_eintrag_ohne_port_gilt_als_passend():
     Von Hand angelegte Eintraege fuehren das Feld nicht immer; sie sollen
     trotzdem als vorhandene Verbindung gelten, statt eine zweite zu erzeugen.
     """
-    ohne_port = {"implementation": "MediaBrowser", "fields": [{"name": "host", "value": "10.10.10.109"}]}
-    jellyfin = _server("jellyfin", "http://10.10.10.109:8096")
+    ohne_port = {"implementation": "MediaBrowser", "fields": [{"name": "host", "value": "192.168.1.10"}]}
+    jellyfin = _server("jellyfin", "http://192.168.1.10:8096")
     assert _passender_eintrag([ohne_port], jellyfin) is ohne_port
 
 
@@ -71,9 +71,9 @@ def test_port_als_zahl_oder_text():
     als_text = {
         "implementation": "MediaBrowser",
         "fields": [
-            {"name": "host", "value": "10.10.10.109"},
+            {"name": "host", "value": "192.168.1.10"},
             {"name": "port", "value": "8096"},
         ],
     }
-    jellyfin = _server("jellyfin", "http://10.10.10.109:8096")
+    jellyfin = _server("jellyfin", "http://192.168.1.10:8096")
     assert _passender_eintrag([als_text], jellyfin) is als_text

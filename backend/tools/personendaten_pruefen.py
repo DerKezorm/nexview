@@ -5,11 +5,9 @@
 
 Rueckgabecode 0, wenn nichts gefunden wurde, sonst 1.
 
-⚠️ **Warum es das gibt.** Am 02.09.2026 stand im oeffentlichen Repository der
-volle Name einer angehoerigen Person in zwoelf Zeilen, dazu zwei echte
-Plex-Kontonummern in neunzehn. Beides seit Wochen, beides durch 2.500 Tests und
-jede Pruefung gelaufen. Gefunden hat es niemand - es kam beim Nachsehen aus
-einem anderen Anlass heraus.
+⚠️ **Warum es das gibt.** Namen und Konto-Kennungen echter Personen laufen durch
+jeden gewoehnlichen Test hindurch, weil keiner danach sucht. Dieses Werkzeug
+sucht danach.
 
 ⚠️ **Zwei Haelften, und die zweite darf nicht ins Repository.**
 
@@ -257,11 +255,10 @@ def kandidaten(text: str):
     Auch die Teile zusammengeschriebener Namen: "MiraBaumgart" faellt sonst
     durch, weil es als ein Wort anders aussieht als sein Vorname.
 
-    ⚠️ Das Beispiel hier ist erfunden, und das ist keine Kosmetik: Bis zum
-    02.09.2026 stand an dieser Stelle ein echter voller Name - in dem Werkzeug,
-    das genau das verhindern soll. Es fiel nicht auf, weil ``git ls-files``
-    eine noch nicht versionierte Datei nicht kennt und die Pruefung sich
-    selbst also nicht ansah.
+    ⚠️ Das Beispiel hier ist erfunden, und das ist keine Kosmetik: Das Werkzeug
+    liegt selbst im Repository, und ``git ls-files`` kennt eine noch nicht
+    versionierte Datei nicht - ein echter Name an dieser Stelle fiele also
+    nicht auf.
     """
     for m in _WORT.finditer(text):
         wort = m.group(0)

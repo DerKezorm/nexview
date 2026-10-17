@@ -1,6 +1,6 @@
 """Die Konten eines Nexview-Kontos auf den Medienservern, beim Loeschen.
 
-Entschieden am 12. und 13.09.2026:
+Die Regeln:
 
 * Beim Loeschen eines Kontos fragt Nexview, ob der Zugang auf den
   Medienservern mitgeht. Ohne Haken bleibt dort alles, wie es ist.

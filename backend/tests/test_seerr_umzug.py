@@ -1556,7 +1556,7 @@ _PNG = _png()
 
 
 def test_profilbilder_kommen_mit(client: TestClient, seerr_attrappe, monkeypatch) -> None:
-    """Entschieden am 03.09.2026: Die Bilder werden geholt, nicht nur gezeigt."""
+    """Die Bilder werden geholt, nicht nur gezeigt."""
     from app.db import SessionLocal
     from app.models import User
     from app.routers import seerr_umzug

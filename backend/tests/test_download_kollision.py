@@ -7,7 +7,7 @@ sucht der Betreiber beim Netz. Radarr kann nicht warnen: Es kennt die zweite
 Instanz gar nicht. Nexview kennt beide.
 
 ⚠️ **Die Werte stammen aus einer echten Anlage** (29.08.2026): drei Instanzen
-auf demselben SABnzbd unter ``10.10.10.109:8080``, mit den Kategorien
+auf demselben SABnzbd unter ``192.168.1.10:8080``, mit den Kategorien
 ``movies``, ``movies-4k`` und ``tv``. Erfundene Beispiele haetten den Fall
 verfehlt, dass das Kategoriefeld je Dienst anders heisst.
 """
@@ -19,7 +19,7 @@ import pytest
 from app.services.beschaffung.arr import download_kollision as kollision
 
 
-def programm(art="Sabnzbd", host="10.10.10.109", port=8080, an=True, **felder):
+def programm(art="Sabnzbd", host="192.168.1.10", port=8080, an=True, **felder):
     """Ein Download-Programm, wie es die Instanz beschreibt."""
     liste = [{"name": "host", "value": host}, {"name": "port", "value": port}]
     liste += [{"name": k, "value": v} for k, v in felder.items()]
@@ -46,7 +46,7 @@ def test_zwei_radarr_auf_derselben_kategorie():
     [treffer] = kollision.finden(anlage)
     assert treffer.kategorie == "movies"
     assert treffer.instanzen == ["Radarr FHD", "Radarr 4K"]
-    assert treffer.programm_name == "Sabnzbd auf 10.10.10.109:8080"
+    assert treffer.programm_name == "Sabnzbd auf 192.168.1.10:8080"
 
 
 def test_auch_eine_dritte_instanz_kommt_dazu():
@@ -87,8 +87,8 @@ def test_gross_und_kleinschreibung_zaehlt_nicht():
 def test_verschiedene_downloader_kollidieren_nicht():
     """Zwei Programme auf verschiedenen Rechnern teilen sich nichts."""
     assert kollision.finden([
-        ("a", "A", [programm(host="10.10.10.109", movieCategory="movies")]),
-        ("b", "B", [programm(host="10.10.10.200", movieCategory="movies")]),
+        ("a", "A", [programm(host="192.168.1.10", movieCategory="movies")]),
+        ("b", "B", [programm(host="192.168.1.20", movieCategory="movies")]),
     ]) == []
 
 
@@ -167,7 +167,7 @@ def test_mehrere_programme_werden_einzeln_verglichen():
             programm(art="QBittorrent", port=8081, movieCategory="filme"),
         ]),
     ])
-    assert [t.programm_name for t in treffer] == ["QBittorrent auf 10.10.10.109:8081"]
+    assert [t.programm_name for t in treffer] == ["QBittorrent auf 192.168.1.10:8081"]
 
 
 def test_blackhole_kollidiert_ueber_den_ordner():

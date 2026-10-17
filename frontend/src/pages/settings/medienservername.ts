@@ -19,7 +19,7 @@ export const ANBIETER: Record<string, string> = {
  *
  * ⚠️ Emby nennt sich hier schon mal „fed014e636a7“, das ist die Kennung der
  * Installation, kein Name. Sie in der Oberfläche zu zeigen hilft niemandem;
- * „Emby“ sagt mehr. Plex dagegen liefert echte Namen wie „Bizzy“, und die
+ * „Emby“ sagt mehr. Plex dagegen liefert echte Namen wie „Wohnzimmer“, und die
  * sind es wert, genannt zu werden.
  */
 export function eigenname(name: string, provider: string): string {

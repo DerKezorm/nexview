@@ -6,7 +6,7 @@
 
 **Find something to watch — and request it straight from Radarr and Sonarr, or from nexcrate.**
 
-[Project site](https://nexview.nexapps.dev) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/DerKezorm/nexview/issues/new)
+[Changelog](CHANGELOG.md) · [Report an issue](https://github.com/DerKezorm/nexview/issues/new)
 
 </div>
 
@@ -41,9 +41,6 @@ deciding anything.
 <sub>Requesting a title, and the same installation seen by a child.</sub>
 
 </div>
-
-**The full tour is on the [project site](https://nexview.nexapps.dev)** — every area with
-its own page and more screenshots.
 
 ---
 

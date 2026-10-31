@@ -12,6 +12,26 @@ tag exists for it.
 
 ---
 
+## 1.4.1 – 31.10.2026
+
+### Added
+
+- **What's new tells you about the iPhone app.** nexview is on the
+  [App Store](https://apps.apple.com/app/nexview-app/id6823895623), and the
+  [Android test](https://github.com/DerKezorm/nexview/discussions/14) needs 20 testers. A
+  section of What's new can now carry a link.
+
+### Fixed
+
+- A page the browser translated no longer goes blank when something on it changes.
+- The notice for 1.4.0 never appeared, because its text sat in the wrong place. It is now
+  in the What's new window.
+- The Discord avatar comes from the repository, not from the project site.
+
+### Changed
+
+- Sign-in module 1.0.14.
+
 ## 1.4.0 – 17.10.2026
 
 ### Added

@@ -749,26 +749,55 @@
           "Die Adresse im Code ist die öffentliche Adresse aus den Einstellungen; ohne sie die, unter der du nexview gerade im Browser siehst.",
           "Für die App gibt es eine eigene Schnittstelle unter /api/app/1. Für eigene Anbindungen bleibt /api/v1 die beschriebene Schnittstelle."
         ]
+      },
+      "1.4.0": {
+        "lead": "Die iPhone-App von nexview wird zum Werkzeug für den Alltag: Administratoren erledigen dort den täglichen Betrieb, alle anderen haben Glocke, Kalender, Merkliste, Tickets und Bewertungen in der Tasche. nexview stellt dafür die Schnittstelle bereit; im Browser ändert sich nichts.",
+        "sections": [
+          {
+            "title": "Betrieb in der App",
+            "where": "iPhone-App → Betrieb (nur Administratoren)",
+            "body": "Was das Admin-Dashboard zeigt, steht auch in der App: wartende Freigaben, Befunde, Datenträger. Dazu hängende Downloads mit denselben Knöpfen wie im Browser, Benutzer mit Rolle und Kontingenten, Einladungen, Rückmeldungen, Sperrliste, Papierkorb und die Abgaben (Ins Haus, Löschen, Nicht mehr folgen). Eingerichtet wird weiter im Browser."
+          },
+          {
+            "title": "Für alle in der App",
+            "where": "iPhone-App",
+            "body": "Die Glocke mit deinen Benachrichtigungen, der Kalender, deine Plex-Merkliste, „Mag ich“, Tickets samt Antworten und „Wie war die Qualität?“ auf Titeln, die da sind. Speicher gibst du in der App ab, und Entdecken zeigt dieselben Regale wie Stöbern im Browser."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Was die App über /api/app/1 ändert, prüft nexview genauso wie im Browser: Das Konto des Betreibers bleibt auch dort geschützt, Kontingente und Rechte gelten unverändert."
+        ]
+      },
+      "1.4.1": {
+        "lead": "Diesmal keine neue Funktion, sondern eine Nachricht: **nexview gibt es jetzt als App für iPhone und iPad.**",
+        "sections": [
+          {
+            "title": "nexview im App Store",
+            "where": "Profil → Konto → Sicherheit → iPhone-App verbinden",
+            "body": "Mit der App fragst du Filme und Serien an, behältst deine Anfragen, dein Kontingent und die Glocke im Blick und stöberst in denselben Regalen wie im Browser. Wer freigeben darf, tut das unterwegs, Administratoren erledigen dort den täglichen Betrieb, und Kinder bekommen einen eigenen Kindermodus. Die App ist kostenlos und spricht nur mit deinem eigenen nexview. Zum Verbinden scannt jede Person den QR-Code aus ihrem Profil, Kinder bekommen ihren Code von den Eltern.",
+            "link": {
+              "label": "nexview im App Store",
+              "href": "https://apps.apple.com/app/nexview-app/id6823895623"
+            }
+          },
+          {
+            "title": "Android: Tester gesucht",
+            "where": "GitHub → Discussions",
+            "body": "Wir möchten auch eine App für Android bauen. Bevor Google eine neue App in den Play Store lässt, muss sie in einem geschlossenen Test mit 20 Testern laufen. Wenn du ein Android-Gerät hast und mitmachen möchtest, melde dich in der Diskussion auf GitHub.",
+            "link": {
+              "label": "Zur Diskussion auf GitHub",
+              "href": "https://github.com/DerKezorm/nexview/discussions/14"
+            }
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Eine vom Browser übersetzte Seite konnte leer werden, sobald sich etwas auf ihr änderte. nexview arbeitet auf so einer Seite jetzt weiter.",
+          "Der Hinweis zu 1.4.0 ist nie erschienen. Sein Text steht jetzt oben im Fenster unter 1.4.0.",
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
-    },
-    "1.4.0": {
-      "lead": "Die iPhone-App von nexview wird zum Werkzeug für den Alltag: Administratoren erledigen dort den täglichen Betrieb, alle anderen haben Glocke, Kalender, Merkliste, Tickets und Bewertungen in der Tasche. nexview stellt dafür die Schnittstelle bereit; im Browser ändert sich nichts.",
-      "sections": [
-        {
-          "title": "Betrieb in der App",
-          "where": "iPhone-App → Betrieb (nur Administratoren)",
-          "body": "Was das Admin-Dashboard zeigt, steht auch in der App: wartende Freigaben, Befunde, Datenträger. Dazu hängende Downloads mit denselben Knöpfen wie im Browser, Benutzer mit Rolle und Kontingenten, Einladungen, Rückmeldungen, Sperrliste, Papierkorb und die Abgaben (Ins Haus, Löschen, Nicht mehr folgen). Eingerichtet wird weiter im Browser."
-        },
-        {
-          "title": "Für alle in der App",
-          "where": "iPhone-App",
-          "body": "Die Glocke mit deinen Benachrichtigungen, der Kalender, deine Plex-Merkliste, „Mag ich“, Tickets samt Antworten und „Wie war die Qualität?“ auf Titeln, die da sind. Speicher gibst du in der App ab, und Entdecken zeigt dieselben Regale wie Stöbern im Browser."
-        }
-      ],
-      "smallTitle": "Außerdem",
-      "small": [
-        "Was die App über /api/app/1 ändert, prüft nexview genauso wie im Browser: Das Konto des Betreibers bleibt auch dort geschützt, Kontingente und Rechte gelten unverändert."
-      ]
     }
   }
 }

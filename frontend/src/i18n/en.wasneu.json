@@ -749,26 +749,55 @@
           "The address in the code is the public address from the settings; without one, the address you are using nexview at in the browser.",
           "The app has its own interface under /api/app/1. For your own integrations /api/v1 stays the documented interface."
         ]
+      },
+      "1.4.0": {
+        "lead": "The nexview iPhone app becomes a tool for every day: administrators handle the daily work there, everyone else carries the bell, the calendar, the watchlist, tickets and ratings in their pocket. nexview provides the interface for it; nothing changes in the browser.",
+        "sections": [
+          {
+            "title": "Operations in the app",
+            "where": "iPhone app → Operations (administrators only)",
+            "body": "What the admin dashboard shows is in the app too: waiting approvals, findings, disk. Along with stuck downloads with the same buttons as in the browser, users with role and quotas, invitations, feedback, the blocklist, the recycle bin and give-ups (to the house, delete, stop following). Setting things up stays in the browser."
+          },
+          {
+            "title": "For everyone in the app",
+            "where": "iPhone app",
+            "body": "The bell with your notifications, the calendar, your Plex watchlist, “Like”, tickets with their replies, and “How was the quality?” on titles that are there. You give up storage in the app, and Discover shows the same shelves as Browse in the web."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "What the app changes through /api/app/1 is checked exactly as in the browser: the operator's account stays protected there too, quotas and rights apply unchanged."
+        ]
+      },
+      "1.4.1": {
+        "lead": "No new feature this time, but news: **nexview is now available as an app for iPhone and iPad.**",
+        "sections": [
+          {
+            "title": "nexview on the App Store",
+            "where": "Profile → Account → Security → Connect the iPhone app",
+            "body": "With the app you request movies and series, keep an eye on your requests, your quota and the bell, and browse the same shelves as in the browser. Whoever may approve does so on the go, administrators handle the daily work there, and children get a kids mode of their own. The app is free and talks only to your own nexview. To connect it, everyone scans the QR code from their own profile, and children get their code from their parents.",
+            "link": {
+              "label": "nexview on the App Store",
+              "href": "https://apps.apple.com/app/nexview-app/id6823895623"
+            }
+          },
+          {
+            "title": "Android: testers wanted",
+            "where": "GitHub → Discussions",
+            "body": "We would like to build an app for Android as well. Before Google lets a new app into the Play Store, it has to run in a closed test with 20 testers. If you have an Android device and would like to help, sign up in the discussion on GitHub.",
+            "link": {
+              "label": "Go to the discussion on GitHub",
+              "href": "https://github.com/DerKezorm/nexview/discussions/14"
+            }
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "A page the browser translated could go blank as soon as something on it changed. nexview now keeps working on such a page.",
+          "The notice for 1.4.0 never appeared. Its text now sits in the window above, under 1.4.0.",
+          "Nothing else changes, the database neither."
+        ]
       }
-    },
-    "1.4.0": {
-      "lead": "The nexview iPhone app becomes a tool for every day: administrators handle the daily work there, everyone else carries the bell, the calendar, the watchlist, tickets and ratings in their pocket. nexview provides the interface for it; nothing changes in the browser.",
-      "sections": [
-        {
-          "title": "Operations in the app",
-          "where": "iPhone app → Operations (administrators only)",
-          "body": "What the admin dashboard shows is in the app too: waiting approvals, findings, disk. Along with stuck downloads with the same buttons as in the browser, users with role and quotas, invitations, feedback, the blocklist, the recycle bin and give-ups (to the house, delete, stop following). Setting things up stays in the browser."
-        },
-        {
-          "title": "For everyone in the app",
-          "where": "iPhone app",
-          "body": "The bell with your notifications, the calendar, your Plex watchlist, “Like”, tickets with their replies, and “How was the quality?” on titles that are there. You give up storage in the app, and Discover shows the same shelves as Browse in the web."
-        }
-      ],
-      "smallTitle": "Also",
-      "small": [
-        "What the app changes through /api/app/1 is checked exactly as in the browser: the operator's account stays protected there too, quotas and rights apply unchanged."
-      ]
     }
   }
 }

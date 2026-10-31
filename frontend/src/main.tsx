@@ -9,6 +9,7 @@ import { AuthProvider } from './auth/AuthProvider'
 import { BASIS, basisPruefen } from './lib/basis'
 import { i18nStarten } from './i18n'
 import { startFehlgeschlagen } from './lib/startFehlgeschlagen'
+import { bearTranslatedPages } from './lib/translatedPage'
 import './styles/index.css'
 
 // Wer die Seite bei gesetztem Unterpfad ohne Vorbau geöffnet hat, wird sofort
@@ -26,6 +27,7 @@ const queryClient = new QueryClient({
 })
 
 function anwendungStarten(): void {
+  bearTranslatedPages()
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       {/* ⚠️ **Ganz außen, damit wirklich alles darunter liegt.** Ein

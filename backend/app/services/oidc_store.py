@@ -1,7 +1,6 @@
 """Nexviews Seite des gemeinsamen Anmeldemoduls ``vendor/nexoidc``.
 
-Das Modul (Bauplan "Anmeldung mit OIDC und authentik", in allen nex-Apps
-gleich) fuehrt das Protokoll, entscheidet, wer eine Identitaet ist, und fuehrt
+Das Modul (in allen nex-Apps gleich) fuehrt das Protokoll, entscheidet, wer eine Identitaet ist, und fuehrt
 die Anbieterliste. Eine Datenbank sieht es nie. Was Nexview gehoert, steht
 hier: der ``Store`` ueber ``oidc_providers`` und ``oidc_links``, Konten samt
 Namen, die Rechte einer Einladung, die Verschluesselung der Client-Geheimnisse
@@ -141,7 +140,7 @@ def anderer_weg_hinein(user: User) -> bool:
 
     Ein nutzbares Passwort oder eine Medienserver-Verknuepfung - ein Weg, den
     das Konto heute hat. Das Modul nennt die Frage ``has_password`` und haelt
-    danach die letzte Verknuepfung fest (Bauplan 01, ``oidc_only_account``).
+    danach die letzte Verknuepfung fest (``oidc_only_account``).
     Eine bestaetigte Adresse zaehlt nicht mit: "Passwort vergessen" fuehrt erst
     zu einem Weg, und bis dahin waere das Konto zu.
     """
@@ -156,8 +155,7 @@ def anbieter_aktiv(db: Session) -> bool:
 def passwort_anmeldung(db: Session) -> bool:
     """Gilt die Anmeldung mit Passwort gerade fuer alle?
 
-    Abgeschaltet nur, solange mindestens ein Anbieter aktiv ist (Bauplan 01,
-    "Passwort-Anmeldung"): Faellt der letzte Anbieter weg oder geht aus, gilt
+    Abgeschaltet nur, solange mindestens ein Anbieter aktiv ist: Faellt der letzte Anbieter weg oder geht aus, gilt
     das Passwort wieder, sonst kaeme niemand mehr herein. Der Betreiber kann
     sich immer mit Passwort anmelden - das prueft ``routers/auth.login``.
     """
@@ -542,7 +540,7 @@ def _spalten(cursor, tabelle: str) -> set[str]:
 
 
 def nach_bauplan_wandern(engine) -> dict[str, int]:
-    """Die Anbieter und Verknuepfungen von 1.0.1 in die Tabellen des Bauplans.
+    """Die Anbieter und Verknuepfungen von 1.0.1 in die Tabellen des Anmeldemoduls.
 
     Laeuft genau einmal, nach der Sicherung vor dem Update (``db.init_db``),
     und nur, wenn ``oidc_providers`` noch die Spalte ``issuer_url`` hat.
@@ -557,8 +555,8 @@ def nach_bauplan_wandern(engine) -> dict[str, int]:
     * Jede Zeile aus ``user_oidc_links`` wird eine Verknuepfung des Eintrags mit
       demselben Aussteller (``same_issuer``). Zeilen ohne passenden Eintrag
       (der Anbieter wurde geloescht oder hat den Aussteller gewechselt; in 1.0.1
-      blieben sie stehen) kommen nicht mit: Nach dem Bauplan gehen
-      Verknuepfungen mit ihrem Eintrag. ``user_oidc_links`` selbst bleibt eine
+      blieben sie stehen) kommen nicht mit: Verknuepfungen gehen
+      mit ihrem Eintrag. ``user_oidc_links`` selbst bleibt eine
       Fassung lang unangetastet stehen.
     * Konten mit einer Verknuepfung aus 1.0.1 (ausser dem Betreiber) bekommen
       ``email_origin = "oidc"``: 1.0.1 uebernahm die Adresse des Anbieters,

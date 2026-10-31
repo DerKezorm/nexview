@@ -1,6 +1,6 @@
 """Titelseite und Downloads-Seite, wenn der Beschaffungsweg nicht antwortet.
 
-Zwei Befunde aus dem großen Prüfgang (26.09.2026):
+Zwei Fälle (26.09.2026):
 
 * Während nexcrate neu startete, stand auf der Titelseite eines angefragten
   Films „Not requested" samt Anfrage-Knopf. Die Anfrage war längst fertig

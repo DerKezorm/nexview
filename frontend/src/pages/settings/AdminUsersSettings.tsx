@@ -987,7 +987,7 @@ export function AdminUsersSettings() {
                     )}
 
                     {/* Die Anmelde-Anbieter, mit denen das Konto verknüpft ist,
-                        als Marken - samt „Verknüpfung lösen“ (Bauplan 04). */}
+                        als Marken - samt „Verknüpfung lösen“. */}
                     {user.role !== "child" && <OidcMarken user={user} />}
 
                     {/* Genau ein Konto trägt es. Es ist bewusst ruhig

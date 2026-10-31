@@ -1,6 +1,6 @@
 /**
- * Die Rückfrage, bevor sich die öffentliche Adresse ändert (Bauplan „Anmeldung
- * mit OIDC und authentik“, 04, Karte 1; Anmeldemodul 1.0.10).
+ * Die Rückfrage, bevor sich die öffentliche Adresse ändert (Anmeldemodul
+ * 1.0.10).
  *
  * Führt die neue Adresse bei einem Eintrag des authentik-Knopfs von der
  * Rückleitadresse weg, die authentik kennt, oder gibt es aktive Anbieter von

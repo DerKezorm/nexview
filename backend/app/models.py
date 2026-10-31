@@ -321,7 +321,7 @@ class User(Base):
     # Woher die Adresse kommt, solange niemand sie in Nexview bestaetigt hat.
     # ``""``: vom Betreiber gesetzt, bei der Einrichtung, aus einer Einladung
     # oder per Link aus der Mail bestaetigt. ``"oidc"``: vom Anmelde-Anbieter
-    # uebernommen (der Bauplan: nie ueber die Mailadresse zuordnen).
+    # uebernommen (nie ueber die Mailadresse zuordnen).
     # ``"self"``: im Profil selbst eingetragen, noch nicht bestaetigt.
     #
     # ⚠️ **Nur mit ``""`` darf die Adresse ein Konto finden**
@@ -1112,7 +1112,7 @@ class BeendeteSitzung(Base):
     reine JWT ohne Eintrag in der Datenbank. Abmelden nahm deshalb nur das
     Cookie aus *diesem* Browser; eine vorher gezogene Kopie davon holte sich
     ueber ``/api/auth/refresh`` weiter frische Zugangs-Token, bis zu dreissig
-    Tage lang (Befund aus dem grossen Pruefgang). Jedes Token traegt seitdem
+    Tage lang. Jedes Token traegt seitdem
     die Kennung seiner Sitzung (``sid``), die beim Erneuern mitwandert; steht
     sie hier, gilt keines der Token dieser Sitzung mehr - weder die Kopie des
     Cookies noch das laufende Zugangs-Token. Die anderen Geraete desselben
@@ -3434,10 +3434,9 @@ class ChildWish(Base):
 
 
 class OidcProvider(Base):
-    """Ein Anmelde-Anbieter nach OpenID Connect - die Tabelle des Bauplans.
+    """Ein Anmelde-Anbieter nach OpenID Connect.
 
-    Spalte fuer Spalte wie Bauplan 01 ("Anmeldung mit OIDC und authentik"),
-    damit das gemeinsame Modul ``vendor/nexoidc`` sie ueber
+    Spalte fuer Spalte so, dass das gemeinsame Modul ``vendor/nexoidc`` sie ueber
     ``services/oidc_store.SqlStore`` lesen und schreiben kann. Bis 1.0.1 hiess
     der Aussteller ``issuer_url`` und war eindeutig, das Geheimnis stand ohne
     eigenen Kontext in ``client_secret``; ``db._oidc_nach_bauplan`` hat die
@@ -3516,7 +3515,7 @@ class OidcProvider(Base):
 class OidcLink(Base):
     """Eine verknuepfte Identitaet: ein Konto bei einem Anbieter.
 
-    Bauplan 01: Zugeordnet wird **nur** ueber ``(provider_id, subject)``, nie
+    Zugeordnet wird **nur** ueber ``(provider_id, subject)``, nie
     ueber die Mailadresse. ``email`` steht nur zur Anzeige da. Geht der
     Anbieter, gehen seine Verknuepfungen mit (``ON DELETE CASCADE``); aendert
     sich sein Aussteller, verfallen sie (eine Kennung gilt nur zusammen mit

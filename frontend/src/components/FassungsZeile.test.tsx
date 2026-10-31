@@ -1,7 +1,7 @@
 /**
  * Die Gründe einer Fassung stehen als Satz da, nie als roher Code.
  *
- * Großer Prüfgang, 25.09.2026: Hinter jeder Fassung stand `fed_by_source`,
+ * Fall vom 25.09.2026: Hinter jeder Fassung stand `fed_by_source`,
  * in beiden Sprachen gleich.
  */
 

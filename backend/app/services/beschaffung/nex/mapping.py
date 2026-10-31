@@ -172,8 +172,8 @@ def anfragbar(eintrag: dict[str, Any]) -> bool:
     """Fuehrt eine Anfrage in dieser Fassung zu einem Download?
 
     Das ist Nexviews ``bereit``, und es ist nicht nexcrates ``ready``: Das ist
-    schon bei ausgeschalteter Automatik falsch. Bis zum grossen Pruefgang
-    (26.09.2026) fragte ``/api/config`` gar nicht nach - eine Fassung ohne
+    schon bei ausgeschalteter Automatik falsch. Bis zum 26.09.2026
+    fragte ``/api/config`` gar nicht nach - eine Fassung ohne
     Profil und Ordner hiess "bereit", und jede Anfrage darin stand fuer immer
     auf "wird gesucht".
     """

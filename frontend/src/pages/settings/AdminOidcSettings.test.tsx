@@ -1,7 +1,7 @@
 /**
  * Das Anbieter-Formular: kein Schalter für einen zweiten Faktor, den Nexview nicht hat.
  *
- * Der Bauplan führt „Der Anbieter prüft den zweiten Faktor selbst“ nur dort, wo die
+ * Das Anmeldemodul führt „Der Anbieter prüft den zweiten Faktor selbst“ nur dort, wo die
  * App einen eigenen zweiten Faktor hat. Nexview hat keinen; der Wert bleibt trotzdem
  * an und geht beim Speichern unverändert mit.
  */

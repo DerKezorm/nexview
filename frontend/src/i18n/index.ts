@@ -57,8 +57,8 @@ const TEXTE: Record<Language, () => Promise<{ default: Record<string, unknown> }
 
 /**
  * Die Texte der Anmeldung über Anbieter (`oidc.…`) kommen mit dem gemeinsamen
- * Modul `vendor/nexoidc` – in jeder nex-App dieselben Wörter (Bauplan
- * „Anmeldung mit OIDC und authentik“, 04). Nexview überschreibt keinen davon;
+ * Modul `vendor/nexoidc` – in jeder nex-App dieselben Wörter.
+ * Nexview überschreibt keinen davon;
  * `nexoidc.wording.test.ts` bewacht das. `{{app}}` setzt i18next selbst ein.
  */
 function mitAnmeldetexten(

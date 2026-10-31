@@ -103,8 +103,8 @@ def _weg_fehler(error: BeschaffungError) -> RequestError:
     """Ein Fehler des Beschaffungswegs als Antwort auf Anfragen und Abbrueche.
 
     Beide Wege geben ihre Kennung mit, wenn sie eine haben - eine begruendete
-    Absage kommt dann als 4xx, sonst bleibt es beim 502. Bis zum grossen
-    Pruefgang (26.09.2026) wurde aus nexcrates 409 ``version_fed_by_source``
+    Absage kommt dann als 4xx, sonst bleibt es beim 502. Bis zum
+    26.09.2026 wurde aus nexcrates 409 ``version_fed_by_source``
     hier ein 502 "nexcrate hat abgelehnt." - ohne Grund, ohne Kennung und fuer
     einen englischen Nutzer auf Deutsch; derselbe Fehlschlag traf danach den
     Arr-Weg, dessen Fehler bis dahin nie eine Kennung nach draussen gaben.
@@ -112,7 +112,7 @@ def _weg_fehler(error: BeschaffungError) -> RequestError:
     ⚠️ **Die Entscheidung faellt hier, nicht an einem Klassenattribut je
     Fehlerklasse.** Ein ``ArrError`` oder ``NexcrateError`` mit Kennung zeigt
     sie unabhaengig vom Weg, sobald er hier ankommt. Ein Schalter an der
-    Fehlerklasse selbst (``kennung_nach_aussen``, bis zum Pruefgang nur bei
+    Fehlerklasse selbst (``kennung_nach_aussen``, bis zum 26.09.2026 nur bei
     ``NexcrateError`` gesetzt) saehe dagegen wie eine dauerhafte Eigenschaft
     dieser Klasse aus, obwohl er nur diese eine Stelle betraf, die beide Wege
     sieht.
@@ -972,7 +972,7 @@ async def im_medienserver(
             db, MediaType(media_type), items, fassungen.serverstufe(settings, media_type, kennung)
         )
     # ⚠️ **Im NEX-Betrieb zaehlt, was nexcrate fuehrt**, nicht der Name, den
-    # der Medienserver einem Ordner gegeben hat (grosser Pruefgang, 25.09.2026:
+    # der Medienserver einem Ordner gegeben hat (gesehen am 25.09.2026:
     # die Anime-Serie als gleichnamige Realserie erkannt). Im ARR-Betrieb bleibt
     # es beim Treffer wie bisher.
     if settings.beschaffung_ist_nex:
@@ -1393,7 +1393,7 @@ async def create_request(
         raise _hauptfassung_fehlt(settings, media_type)
     # Und dieselbe Frage zu Ende: Im NEX-Betrieb kann eine Fassung da sein und
     # trotzdem nichts laden (kein Profil, kein Ordner). Eine Anfrage darin
-    # stand bis zum grossen Pruefgang (26.09.2026) fuer immer auf "wird
+    # stand bis zum 26.09.2026 fuer immer auf "wird
     # gesucht", ohne dass nexcrate je suchte.
     if settings.fassung(kennung) is not None and not fassungen.bereit(db, settings, kennung):
         raise RequestError(
@@ -1507,7 +1507,7 @@ async def create_request(
             )
         # Mit Kennung und Titel, in derselben Form wie ``already_in_library``
         # weiter unten: Beides heisst „hast du schon“, und wer auf
-        # ``detail.code`` sieht, fand hier bis zum grossen Pruefgang nur einen
+        # ``detail.code`` sieht, fand hier bis zum 26.09.2026 nur einen
         # nackten Satz.
         if season is None:
             raise RequestError(

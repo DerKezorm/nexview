@@ -1,6 +1,5 @@
 /**
- * Pflichttests 33 und 34 (Bauplan „Anmeldung mit OIDC und authentik“, 05) für
- * den Ende-zu-Ende-Lauf. Angelegt aus der Vorlage des Anmeldemoduls
+ * Die Anmeldung über Anbieter im Ende-zu-Ende-Lauf. Angelegt aus der Vorlage des Anmeldemoduls
  * (`bauplaene/oidc/tests-fuer-apps/frontend/nexoidc.spec.ts`), dann Nexviews
  * Datei.
  *

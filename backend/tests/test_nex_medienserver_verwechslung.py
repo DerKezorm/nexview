@@ -1,6 +1,6 @@
 """Ein falsch erkannter Ordner im Medienserver macht keinen fremden Titel "vorhanden".
 
-Grosser Pruefgang, 25.09.2026: Jellyfin hielt den Ordner der Anime-Serie
+Fall vom 25.09.2026: Jellyfin hielt den Ordner der Anime-Serie
 "One Piece" (TMDB 37854, bei nexcrate mit Dateien) fuer die gleichnamige
 Realserie (TMDB 111110). Nexview uebernahm die Kennung ungeprueft: Die
 Realserie, von der keine Datei existierte, stand als "In der Bibliothek" da
@@ -222,7 +222,7 @@ async def test_im_arr_betrieb_bleibt_der_treffer(db: Session) -> None:
 def test_die_entdecken_seite_zeigt_die_andere_serie_nicht_als_vorhanden(
     admin_client: Any, nexcrate: FakeNexcrate
 ) -> None:
-    """Derselbe Fall durch ``_status_for``, wie ihn der Pruefgang sah."""
+    """Derselbe Fall durch ``_status_for``."""
     with SessionLocal() as sitzung:
         save_settings(
             sitzung, {"beschaffung": NEX, "nexcrate_url": URL, "nexcrate_api_key": KEY}

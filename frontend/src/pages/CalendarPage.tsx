@@ -134,7 +134,7 @@ export function CalendarPage() {
                   erfundener Satz.
                   `service` mit übergeben: Ohne ihn blieb `{{service}}` in
                   Sätzen wie `arr_timeout` wörtlich stehen, statt „Radarr“
-                  oder „Sonarr“ zu zeigen (Befund, Prüfgang 26.09.2026). */}
+                  oder „Sonarr“ zu zeigen. */}
               {i18n.exists(`errors.byCode.${query.data.arr_warning}`)
                 ? t(`errors.byCode.${query.data.arr_warning}`, {
                     service: query.data.arr_warning_service,

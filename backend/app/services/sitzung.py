@@ -38,8 +38,7 @@ Token aus; beide schicken danach auf die normale Anmeldung.
 
 ⚠️ **Abmelden beendet die Sitzung auf dem Server, nicht nur im Browser.**
 Bis 1.0.0 nahm es nur das Cookie weg; wer vorher eine Kopie davon gezogen
-hatte, kam damit dreissig Tage lang weiter herein (Befund aus dem grossen
-Pruefgang). Jedes Token traegt seitdem die Kennung seiner Sitzung, die beim
+hatte, kam damit dreissig Tage lang weiter herein. Jedes Token traegt seitdem die Kennung seiner Sitzung, die beim
 Erneuern mitwandert, und ``beenden`` traegt sie in ``beendete_sitzungen``
 ein. Danach gilt kein Token dieser Sitzung mehr: nicht die Kopie des
 Cookies und auch nicht das Zugangs-Token, das gerade noch laeuft

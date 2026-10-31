@@ -2,7 +2,7 @@
  * Die Knöpfe der eingerichteten Anmelde-Anbieter – auf der Anmeldeseite und,
  * mit `invite`, auf der Einladungsseite.
  *
- * Aufbau und Wörter aus dem Bauplan „Anmeldung mit OIDC und authentik“ (04):
+ * Aufbau und Wörter wie in allen nex-Apps:
  * eine Trennlinie „oder“, darunter je aktivem Anbieter ein Knopf „Mit {{name}}
  * anmelden“ (Einladung: „Weiter mit {{name}}“) in der Reihenfolge der Liste.
  *

@@ -1,7 +1,6 @@
 /**
  * In der Zeile eines Kontos: die Anmelde-Anbieter, mit denen es verknüpft ist,
- * als kleine Marken – und je Marke „Verknüpfung lösen“ (Bauplan „Anmeldung mit
- * OIDC und authentik“, 01 und 04, Kontenliste).
+ * als kleine Marken – und je Marke „Verknüpfung lösen“.
  *
  * Lösen fragt das eigene Passwort des Betreibers noch einmal; das Konto des
  * Betreibers selbst kann niemand sonst anfassen (der Server lehnt es ab). Ein

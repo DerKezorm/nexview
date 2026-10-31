@@ -1,4 +1,4 @@
-"""Anmelden ueber fremde Anbieter (OIDC) und der authentik-Knopf - nach dem Bauplan.
+"""Anmelden ueber fremde Anbieter (OIDC) und der authentik-Knopf.
 
 Den Ablauf, die Pruefungen, die Anbieterliste und den Knopf macht das gemeinsame
 Modul ``vendor/nexoidc`` (in allen nex-Apps gleich, per Pruefsumme bewacht).
@@ -6,7 +6,7 @@ Hier steht nur, was Nexview gehoert: Sitzung, Bremse, Passwortabfrage vor dem
 Verknuepfen, Schutz des Betreibers, Sperrliste geloeschter Konten und die
 Fehlerform der API.
 
-Pfade (Bauplan 01 und ``tests-fuer-apps/reference/app.py``):
+Pfade:
 
 | Methode | Pfad | Wer |
 |---|---|---|
@@ -119,7 +119,7 @@ def _weiterleitung(ziel: flow.Redirect, request: Request) -> RedirectResponse:
 
 
 def _gebremst(request: Request, kennung: str | None = None) -> list[str]:
-    """Die Bremse vor Start und Rueckkehr (Bauplan 02, "Ablauf" 4).
+    """Die Bremse vor Start und Rueckkehr.
 
     Gezaehlt wird die Adresse des Absenders - nur wenn ``NEXVIEW_CLIENT_IP``
     sagt, woher sie kommt (sonst waere es die des Proxys, und ein Vertipper
@@ -362,7 +362,7 @@ def _sitzungsbeleg(request: Request, user: User) -> str:
     Nexviews Sitzung steckt im ``Authorization``-Kopf; der Rueckweg vom Anbieter
     ist eine Browser-Navigation und traegt ihn nicht, und das Erneuerungs-Cookie
     liegt nur unter ``/api/auth``. Damit die Rueckkehr das Konto **aus der
-    Sitzung** nimmt und nicht aus dem Anlauf (Bauplan 01, "Verknuepfen"), legt
+    Sitzung** nimmt und nicht aus dem Anlauf, legt
     der Start neben das Anlauf-Cookie ein zweites: Konto und Kennung der
     Sitzung, signiert. Der Rueckweg prueft, dass diese Sitzung noch gilt (nicht
     abgemeldet, kein Passwortwechsel seitdem). Ein Anlauf-Cookie allein, in
@@ -502,7 +502,7 @@ async def rueckweg_alt(
     """Die Adresse, die Anbieter von Nexview bis 1.0.1 kannten.
 
     Die Eintraege von damals tragen sie als ``redirect_path``; sie bleibt
-    dauerhaft gueltig (Bauplan 06, "Pfad der Schnittstelle").
+    dauerhaft gueltig.
     """
     return await _zurueck(slug, request)
 
@@ -729,7 +729,7 @@ def authentik_blueprint(request: Request, admin: AdminUser) -> Response:
 
 
 def adresse_bewachen(db, neu: str, request: Request, *, bestaetigt: bool) -> None:
-    """Fuer jede eigene Route, die die oeffentliche Adresse speichert (Bauplan 04, Karte 1).
+    """Fuer jede eigene Route, die die oeffentliche Adresse speichert.
 
     Fuehrt die neue Adresse bei einem Eintrag des authentik-Knopfs von der
     Rueckleitadresse weg, die authentik kennt, oder gibt es aktive Eintraege von

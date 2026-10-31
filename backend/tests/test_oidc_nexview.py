@@ -1,6 +1,6 @@
 """Was nur Nexview an der Anmeldung ueber Anbieter leistet - neben den Vertragstests.
 
-Die Pflichttests 1 bis 39 des Bauplans liegen unveraendert in ``tests/nexoidc/``
+Die Vertragstests des Moduls liegen unveraendert in ``tests/nexoidc/``
 und laufen gegen ``tests/nexoidc_adapter.py``. Hier steht, was Nexview selbst
 dazubaut: die Wanderung aus 1.0.1, der Schalter fuer die Passwort-Anmeldung, die
 Sperrliste geloeschter Konten, der Beleg der Sitzung beim Verknuepfen, die
@@ -151,7 +151,7 @@ def alte_datenbank(tmp_path: Path) -> Iterator[Any]:
         engine.dispose()
 
 
-def test_die_wanderung_bringt_anbieter_und_verknuepfungen_in_die_tabellen_des_bauplans(
+def test_die_wanderung_bringt_anbieter_und_verknuepfungen_in_die_tabellen_des_moduls(
     alte_datenbank: Any,
 ) -> None:
     zahlen = oidc_store.nach_bauplan_wandern(alte_datenbank)
@@ -647,7 +647,7 @@ def _ueber_plex(db: Session, adresse: str) -> User:
 
 def test_eine_adresse_vom_anbieter_findet_kein_konto_ueber_den_medienserver() -> None:
     """Wer beim Anbieter eine fremde Adresse traegt und ein Konto bekommt, faengt damit nicht die erste
-    Medienserver-Anmeldung des echten Besitzers ein (Bauplan: nie ueber die Mailadresse zuordnen)."""
+    Medienserver-Anmeldung des echten Besitzers ein (nie ueber die Mailadresse zuordnen)."""
     with SessionLocal() as db:
         kennung = oidc_store.SqlStore(db).create_account("angreifer", invite=None, email="opfer@example.com")
         db.commit()
@@ -780,7 +780,7 @@ def test_eine_vom_betreiber_gesetzte_adresse_verknuepft_wie_bisher() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Was der Pruefgang ohne Test fand
+# Faelle, die bis dahin kein Test abdeckte
 # ---------------------------------------------------------------------------
 
 

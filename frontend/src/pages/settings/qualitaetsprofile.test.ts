@@ -157,7 +157,7 @@ describe('Kurzfassung eines Profils', () => {
     // ⚠️ Das Rezept ist laut API ein freies Objekt ohne Formvorgabe - ein
     // Profil, das direkt über die Schnittstelle statt über den Assistenten
     // angelegt wurde, muss nicht die Form von `Antworten` haben. Genau so ein
-    // Profil ("Pruefgang Standard") liess die ganze Qualitätsprofile-Seite
+    // Profil liess die ganze Qualitätsprofile-Seite
     // abstürzen: `TypeError: Cannot read properties of undefined (reading
     // 'filter')`, weil `sprachen` fehlte.
     const fremdesRezept = {

@@ -1,6 +1,6 @@
 """Beispieldaten haben eigene Nummern, und ohne TMDB sagt die Titelseite, warum.
 
-Zwei Befunde aus dem grossen Pruefgang (25./26.09.2026):
+Zwei Faelle (25./26.09.2026):
 
 * **Eigener Nummernraum fehlte**: Die Beispieltitel trugen Kennungen zwischen 900.000 und
   990.000 - mitten in TMDBs Nummernraum. Trug jemand danach einen TMDB-

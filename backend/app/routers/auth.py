@@ -89,7 +89,7 @@ def login(
     # Minuten noch einmal versucht.
     anmeldebremse.geklappt(bremse)
 
-    # Der Betreiber hat die Anmeldung mit Passwort abgeschaltet (Bauplan 01):
+    # Der Betreiber hat die Anmeldung mit Passwort abgeschaltet:
     # Herein kommt man dann ueber einen Anbieter. Der Betreiber selbst immer -
     # er ist der Rueckweg, falls der Anbieter ausfaellt. Erst nach dem Passwort
     # gefragt, damit die Antwort nicht verraet, ob es das Konto gibt.
@@ -205,8 +205,8 @@ def logout(request: Request, response: Response, db: DbSession) -> None:
 
     ⚠️ **Bis 1.0.0 nahm dieser Endpunkt nur das Cookie weg.** Das
     Erneuerungs-Token war ein reines JWT ohne Eintrag in der Datenbank; wer es
-    vorher kopiert hatte, kam damit bis zu dreissig Tage weiter herein (Befund
-    aus dem grossen Pruefgang). Jetzt steht die Sitzung danach in
+    vorher kopiert hatte, kam damit bis zu dreissig Tage weiter herein. Jetzt
+    steht die Sitzung danach in
     ``beendete_sitzungen``, und kein Token von ihr gilt mehr - auch das
     laufende Zugangs-Token nicht. Einzelheiten in ``services/sitzung.py``.
 

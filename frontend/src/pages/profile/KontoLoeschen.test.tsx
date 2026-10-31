@@ -1,7 +1,7 @@
 /**
  * Der Antrag „Konto löschen" trägt die Bestätigung mit.
  *
- * ⚠️ Der Server legt seit dem großen Prüfgang ohne `bestaetigt: true` keinen
+ * ⚠️ Der Server legt seit dem 26.09.2026 ohne `bestaetigt: true` keinen
  * Antrag mehr an (ein leerer POST erzeugte vorher ein echtes Ticket). Schickte
  * die Oberfläche das Feld nicht, bekäme jeder Nutzer nach der Rückfrage nur
  * noch einen Fehler, und kein Backend-Test sähe es.

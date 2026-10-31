@@ -56,7 +56,7 @@ export function LoginPage() {
   })
   // Ist die Anmeldung mit Passwort aus, zeigt die Seite nur die Knöpfe der
   // Anbieter; der Betreiber kommt über den kleinen Weg darunter trotzdem mit
-  // seinem Passwort herein (Bauplan 01, „Passwort-Anmeldung“).
+  // seinem Passwort herein.
   const [alsBetreiber, setAlsBetreiber] = useState(false)
   useEffect(fehlerAusAdresseRaeumen, [])
   const nurAnbieter = !passwordLogin && !alsBetreiber

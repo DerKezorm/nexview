@@ -110,7 +110,7 @@ export function ProfilePage() {
     merkliste: 'watchlist',
     speicher: 'storage',
     // Die alte Adresse der Anmeldeanbieter: Sie stehen jetzt unter Konto,
-    // Sicherheit (Bauplan „Anmeldung mit OIDC und authentik“, 04).
+    // Sicherheit.
     anmeldung: 'account',
   }
   // Die Rückkehr vom Anmelde-Anbieter landet hier mit `?linked=` oder
@@ -726,7 +726,7 @@ export function ProfilePage() {
                   den Einstellungen, weil ein Token **einem Konto** gehört und
                   dessen Rechte erbt - er ist persönlich, kein Instanz-Zugang. */}
               {/* Die Anmeldeanbieter: je aktivem Anbieter eine Zeile mit
-                  Verknüpfen oder Lösen (Bauplan 04, „Mein Konto → Sicherheit“). */}
+                  Verknüpfen oder Lösen. */}
               {user.role !== 'child' && <OidcLinks />}
 
               {user.role !== 'child' && <IphoneApp />}

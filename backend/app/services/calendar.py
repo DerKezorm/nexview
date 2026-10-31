@@ -857,7 +857,7 @@ async def kalender(
     arr_hinweis: str | None = None
     # Der Dienstname zum Platzhalter in ``arr_hinweis`` - ``ArrError`` traegt
     # ihn als Zahl mit (``service=self.label``). Ohne sie stand
-    # "{{service}}" woertlich im Warnkasten (Befund, Pruefgang 26.09.2026).
+    # "{{service}}" woertlich im Warnkasten.
     arr_dienst: str | None = None
     tmdb_hinweis: str | None = None
 

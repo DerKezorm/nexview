@@ -1342,7 +1342,7 @@ TEXTE: dict[str, tuple[str, str]] = {
             'account.'
         ),
     ),
-    # --- Anmeldung ueber fremde Anbieter (OIDC), nach dem Bauplan -------------
+    # --- Anmeldung ueber fremde Anbieter (OIDC) -------------------------------
     'GET /api/oidc/providers': (
         'List the sign-in buttons',
         (

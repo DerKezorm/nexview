@@ -59,7 +59,7 @@ def test_ungueltiger_benutzername_wird_abgelehnt(client: TestClient) -> None:
 
 # --- Der erste Administrator gilt sofort als bestaetigt ----------------------
 #
-# Befund aus dem grossen Pruefgang: Der Assistent schreibt ueber dem Feld "Sie
+# Der Assistent schreibt ueber dem Feld "Sie
 # gilt sofort als bestaetigt", das Konto entstand aber unbestaetigt. Ohne
 # Mailserver kam der Betreiber nach der ersten abgelaufenen Sitzung nicht mehr
 # in die eigene Installation: 403 ``email_unverified``, und die

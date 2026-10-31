@@ -161,7 +161,7 @@ DEFAULTS: dict[str, str] = {
     # Einmal taeglich bei GitHub nachsehen, ob es eine neuere Version gibt.
     # Uebertragen wird dabei nichts ausser der Anfrage selbst.
     "update_check": "on",  # "on" | "off"
-    # Anmeldung mit Passwort (Bauplan "Anmeldung mit OIDC und authentik", 01).
+    # Anmeldung mit Passwort.
     # Abschalten wirkt nur, solange mindestens ein Anmelde-Anbieter aktiv ist,
     # und nie fuer den Betreiber - er ist der Rueckweg, falls der Anbieter
     # ausfaellt.

@@ -1,6 +1,6 @@
 """nexcrate legt einen entfernten Titel beim Zurückholen neu an.
 
-Nachgestellter Fall aus dem Prüfgang: Ein ganz gewöhnlicher Film wird geladen, sein
+Nachgestellter Fall: Ein ganz gewöhnlicher Film wird geladen, sein
 Speicherposten gelöscht - nexcrate entfernt dabei den Titel vollständig, nicht
 nur aus der Bibliothek (``title_id: null`` im Papierkorb) - und binnen
 Sekunden zurückgeholt. Vorher scheiterte das mit 502/``recycle_title_gone``,

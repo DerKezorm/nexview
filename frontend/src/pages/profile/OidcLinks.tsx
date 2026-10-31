@@ -1,7 +1,6 @@
 /**
  * Mein Konto → Sicherheit → Anmeldeanbieter: je aktivem Anbieter eine Zeile
- * mit Zustand und „Verknüpfen“ oder „Lösen“ (Bauplan „Anmeldung mit OIDC und
- * authentik“, 04).
+ * mit Zustand und „Verknüpfen“ oder „Lösen“.
  *
  * Verknüpfen ist eine **Reise des ganzen Browsers**: Die Seite fragt erst das
  * eigene Passwort noch einmal (ein Verknüpfen gibt das Konto an den, der beim

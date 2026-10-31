@@ -166,7 +166,7 @@ from .vendor import nexoidc
 settings = get_settings()
 
 # Das gemeinsame Anmeldemodul wissen lassen, in welcher App es laeuft - vor der
-# ersten Anfrage (Bauplan "Anmeldung mit OIDC und authentik").
+# ersten Anfrage.
 oidc_store.configure()
 
 

@@ -639,7 +639,7 @@ export function InvitationPage() {
             </div>
           </form>
           {/* Oder ohne eigenes Passwort, über einen Anmelde-Anbieter: Die
-              Einladung reist als Schlüssel mit (Bauplan 04, Einladungsseite).
+              Einladung reist als Schlüssel mit.
               Nicht bei Einladungen mit Medienserver - die legt nur dieses
               Formular vollständig an. */}
           {server.length === 0 && <OidcLoginRow invite={token} />}

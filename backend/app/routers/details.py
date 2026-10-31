@@ -244,7 +244,7 @@ async def _mit_status(db, settings, media_type: str, eintraege: list, user=None)
         # nicht mehr - sonst laesst sich der Titel nie wieder anfragen.
         # ⚠️ Nur, wenn sie ueberhaupt etwas gesagt hat: Waehrend nexcrate neu
         # startete, stand hier ein fertig geladener Film als "nicht
-        # angefragt" samt Anfrage-Knopf (Pruefgang, 26.09.2026).
+        # angefragt" samt Anfrage-Knopf.
         if gelesen and eigen == "downloaded" and eintrag.status == "not_requested":
             eigen = None
         # bekannt, keine Datei, keine eigene Anfrage - anfragbar
@@ -376,7 +376,7 @@ async def title_detail(
     # Eine kurze Frist fuer alles, was diese Seite beim Weg fragt: Ohne sie
     # lief bei einer stummen nexcrate jede Abfrage einzeln in die volle
     # Zeitgrenze, und die Seite stand bis zu einer halben Minute bei "Wird
-    # geladen" (Pruefgang, 26.09.2026).
+    # geladen".
     with get_beschaffung(settings).kurze_frist():
         # Was der Weg zum Titel selbst nicht beantwortet hat - jede Fassung,
         # jede Staffel. Die Empfehlungen zaehlen nicht dazu.

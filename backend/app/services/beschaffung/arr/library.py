@@ -157,7 +157,7 @@ async def movie_calendar(settings: AppSettings, start: str, end: str) -> list[di
 
     ⚠️ **Mit derselben Fehlersperre wie die Bibliothek.** Bis zum 26.09.2026
     fehlte sie hier: Eine haengende Instanz liess jeden Kalenderaufruf erneut
-    das volle Zeitlimit abwarten (Pruefgang, 15 bis 38 Sekunden Ladeanzeige),
+    das volle Zeitlimit abwarten (15 bis 38 Sekunden Ladeanzeige),
     obwohl derselbe Schutz fuer die Bibliothek schon bestand.
     """
     schluessel = f"radarr:calendar:{start}:{end}"

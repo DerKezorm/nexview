@@ -337,7 +337,7 @@ def init_db() -> None:
     # sonst beim ersten Start fuer verwaist und warnte vor einem Datenverlust,
     # den es nicht gibt - eine Zeile spaeter sind sie umgezogen.
     _einmal(_fassungen_einfuehren)
-    # Die Anmelde-Anbieter auf die Tabellen des Bauplans (1.0.1 -> danach).
+    # Die Anmelde-Anbieter auf die Tabellen des Anmeldemoduls (1.0.1 -> danach).
     # Vor der Waisenmeldung: Bis zum Umbau steht ``issuer_url`` noch in der
     # Tabelle, und die hielte sie sonst fuer verwaist.
     _einmal(_oidc_nach_bauplan)
@@ -1109,7 +1109,7 @@ def _ankunftsbefund() -> tuple[dict[str, bool], dict[str, str]]:
             f"movie entries without path and not managed={ja(geister)}"
         )
 
-        # Die Anmelde-Anbieter nach dem Bauplan. Erledigt, sobald
+        # Die Anmelde-Anbieter nach dem Anmeldemodul. Erledigt, sobald
         # ``oidc_providers`` keine Spalte ``issuer_url`` mehr hat - oder es die
         # Tabelle gar nicht gibt (dann legt ``create_all`` sie gleich neu an,
         # und es gibt nichts umzutragen).
@@ -1759,7 +1759,7 @@ def _verknuepfungen_in_die_tabelle() -> None:
 
 
 def _oidc_nach_bauplan() -> None:
-    """Anmelde-Anbieter und Verknuepfungen von 1.0.1 in die Tabellen des Bauplans.
+    """Anmelde-Anbieter und Verknuepfungen von 1.0.1 in die Tabellen des Anmeldemoduls.
 
     Die Arbeit macht ``services.oidc_store.nach_bauplan_wandern``; dort steht,
     was mit welcher Zeile geschieht. Die Sicherung davor legt ``init_db`` an,

@@ -44,7 +44,7 @@ FREMDE_CODES: dict[str, str] = {
     "version_not_available": "nexcrate_version_unknown",
     "version_unknown": "nexcrate_version_unknown",
     "version_kind_mismatch": "nexcrate_version_wrong_kind",
-    # 26.09.2026 im grossen Pruefgang: Jede Anfrage an einen Titel, den
+    # Bis zum 26.09.2026: Jede Anfrage an einen Titel, den
     # nexcrate aus einem noch verbundenen Radarr oder Sonarr uebernommen hat,
     # endete als nackter 502 - gleich ob Anime oder gewoehnliche Serie.
     "version_fed_by_source": "nexcrate_version_fed_by_source",

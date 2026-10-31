@@ -110,7 +110,7 @@ class CalendarResult(BaseModel):
     arr_warning: str | None = None
     # Der Dienstname zum Platzhalter in ``arr_warning`` (etwa "Radarr"). Ohne
     # ihn konnte die Oberflaeche "{{service}}" nicht fuellen und zeigte die
-    # Klammern woertlich (Befund, Pruefgang 26.09.2026).
+    # Klammern woertlich.
     arr_warning_service: str | None = None
     tmdb_warning: str | None = None
     demo: bool = False

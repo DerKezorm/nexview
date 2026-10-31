@@ -1,6 +1,6 @@
 """nexcrates begruendete Absagen kommen als Absage an, nicht als 502.
 
-Grosser Pruefgang, 26.09.2026: nexcrate lehnte eine Anfrage mit 409
+Fall vom 26.09.2026: nexcrate lehnte eine Anfrage mit 409
 ``version_fed_by_source`` ab (der Titel kam aus einem noch verbundenen
 Sonarr), und Nexview machte daraus "nexcrate hat abgelehnt." mit 502 - ohne
 Grund, ohne Kennung, fuer einen englischen Nutzer auf Deutsch. Dasselbe beim

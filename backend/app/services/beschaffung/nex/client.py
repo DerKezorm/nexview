@@ -83,7 +83,7 @@ def kurze_frist() -> Iterator[None]:
     Titelseite fragt nexcrate je Fassung, fuer die Empfehlungen und die
     Filmreihe; war nexcrate weg, wartete sie 6 bis 24 Sekunden, bei einer
     eingefrorenen nexcrate laenger als 45, und zeigte so lange nur "Wird
-    geladen" (Pruefgang, 26.09.2026).
+    geladen".
 
     Darin gilt ``KURZ`` statt ``TIMEOUT``, und nach dem ersten Schweigen geht
     keine weitere Frage mehr hinaus: Die Seite bekommt denselben Fehler sofort

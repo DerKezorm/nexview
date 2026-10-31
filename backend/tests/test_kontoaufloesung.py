@@ -74,7 +74,7 @@ def test_ohne_bestaetigung_entsteht_kein_antrag(
 ) -> None:
     """Ein leerer POST legte frueher ein echtes, offenes Ticket an.
 
-    Befund aus dem grossen Pruefgang: Ein automatisierter Rechtetest hinterliess
+    Ein automatisierter Rechtetest hinterliess
     so beim Administrator Antraege ohne jeden Inhalt. Die Rueckfrage in der
     Oberflaeche schuetzt nur den Weg, der durch sie hindurchfuehrt.
     """

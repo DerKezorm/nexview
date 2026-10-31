@@ -281,7 +281,7 @@ def bereit(db: Session, settings: AppSettings, kennung: str) -> bool:
 
     Im ARR-Betrieb heisst das wie von jeher: Die Instanz ist eingerichtet. Im
     NEX-Betrieb zusaetzlich: nexcrate kann in der Fassung laden (die Zeile
-    traegt es, geschrieben vom Weg). Bis zum grossen Pruefgang (26.09.2026)
+    traegt es, geschrieben vom Weg). Bis zum 26.09.2026
     galt eine Fassung ohne Profil und Ordner als bereit.
     """
     if settings.fassung(kennung) is None:

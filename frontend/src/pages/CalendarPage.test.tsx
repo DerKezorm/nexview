@@ -4,7 +4,7 @@
  * ⚠️ **`arr_warning` ist seit 24.09.2026 eine Kennung, kein fertiger Satz**
  * (siehe `errors.byCode`). Sätze wie `arr_timeout` tragen einen Platzhalter
  * (`{{service}}`), den nur die Oberfläche füllen kann - der Server kennt die
- * eingestellte Sprache nicht. Bis zum Prüfgang (26.09.2026) übergab die Seite
+ * eingestellte Sprache nicht. Bis zum 26.09.2026 übergab die Seite
  * dabei keinen Wert für `service`, und die Klammern standen wörtlich im
  * Warnkasten, egal in welcher Sprache.
  */

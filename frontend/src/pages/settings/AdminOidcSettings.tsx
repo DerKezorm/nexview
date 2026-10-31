@@ -1,7 +1,6 @@
 /**
- * Einstellungen → Anmeldung: drei Karten untereinander, wie der Bauplan
- * „Anmeldung mit OIDC und authentik“ (04) sie für jede nex-App festlegt.
- * Reihenfolge, Wörter und Verhalten kommen von dort; die Bauteile (Karte,
+ * Einstellungen → Anmeldung: drei Karten untereinander, wie in jeder
+ * nex-App. Reihenfolge, Wörter und Verhalten sind überall gleich; die Bauteile (Karte,
  * Schalter, Feld, Knopf, Rückfrage) sind Nexviews eigene.
  *
  * 1. Anmeldung: Passwort-Anmeldung (gesperrt an, solange kein Anbieter aktiv
@@ -403,7 +402,7 @@ const LEER: OidcAnbieterForm = {
 
 type Feldname = 'label' | 'slug' | 'issuer' | 'client_id' | 'client_secret' | 'scopes' | 'id'
 
-/** Das Anbieter-Formular als Fenster, Felder in der Reihenfolge des Bauplans. */
+/** Das Anbieter-Formular als Fenster, Felder in fester Reihenfolge. */
 function AnbieterFenster({
   eintrag,
   onSchliessen,
@@ -571,7 +570,7 @@ function AnbieterFenster({
           onChange={(auto_create) => setzen({ auto_create })}
         />
         {/* Kein Schalter „Der Anbieter prüft den zweiten Faktor selbst“: Nexview hat keinen
-            eigenen zweiten Faktor (Bauplan 04, „wo die App das hat“). Der Wert bleibt an und
+            eigenen zweiten Faktor. Der Wert bleibt an und
             wird unverändert mitgeschickt. */}
         <details
           open={mehr || feldfehler?.feld === 'scopes'}

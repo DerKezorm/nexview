@@ -144,7 +144,7 @@ export type User = {
   }[];
   /**
    * Die Verknüpfungen mit Anmelde-Anbietern – je Anbieter höchstens eine
-   * (Bauplan „Anmeldung mit OIDC und authentik“). Geht ein Anbieter, gehen
+   * Geht ein Anbieter, gehen
    * seine Verknüpfungen mit. `email` steht nur zur Anzeige da.
    */
   oidc_links: OidcVerknuepfung[];

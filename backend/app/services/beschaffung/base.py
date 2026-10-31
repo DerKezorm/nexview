@@ -166,8 +166,8 @@ class Lesestand:
     ⚠️ **Die Lesewege schlucken ihre Fehler** und antworten leer: keine Folge
     vorhanden, kein Stand bekannt. Das ist fuer die Anzeige richtig, sagt aber
     nicht, dass nicht gelesen wurde. Die Staffelansicht zeigte so bei einer
-    stummen nexcrate jede Folge als "fehlt noch", ohne jeden Hinweis
-    (Pruefgang, 26.09.2026). Wo ein Weg einen Lesefehler schluckt, vermerkt er
+    stummen nexcrate jede Folge als "fehlt noch", ohne jeden Hinweis.
+    Wo ein Weg einen Lesefehler schluckt, vermerkt er
     ihn hier (``nicht_gelesen``); die Seite fragt danach.
 
     Zwei Arten, nach dem Korb des Fehlers: ``stumm`` (keine Antwort, Zeit,

@@ -390,7 +390,7 @@ class TestUeberallAbmelden:
 # Abmelden beendet die Sitzung auf dem Server
 # --------------------------------------------------------------------------
 #
-# Befund aus dem grossen Pruefgang: Abmelden nahm nur das Cookie aus dem
+# Bis 1.0.0: Abmelden nahm nur das Cookie aus dem
 # Browser. Eine vorher gezogene Kopie holte sich ueber ``/refresh`` weiter
 # frische Zugangs-Token, bis zu dreissig Tage lang, in beiden Betriebsarten
 # gleich (der Weg ist gemeinsamer Code).

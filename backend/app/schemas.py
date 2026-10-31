@@ -89,7 +89,7 @@ class SetupStatus(BaseModel):
     # nur Jellyfin war das ein Knopf, der beim Klick scheiterte - der Ablauf
     # dahinter ist auf plex.tv zugeschnitten.
     mediaserver_login_ways: list[AnmeldeWeg] = []
-    # Die Anmeldung mit Passwort (Bauplan "Anmeldung mit OIDC und authentik", 01):
+    # Die Anmeldung mit Passwort:
     # ``False`` nur, wenn der Betreiber sie abgeschaltet hat **und** mindestens
     # ein Anmelde-Anbieter aktiv ist. Dann zeigt die Anmeldeseite nur die Knoepfe
     # und unten klein den Weg fuer den Betreiber.

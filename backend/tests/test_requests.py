@@ -102,7 +102,7 @@ def test_gleicher_titel_nicht_zweimal(arr_client: TestClient) -> None:
     zweite = _anfrage(arr_client, item, headers)
     assert zweite.status_code == 409
     # ⚠️ **Dieselbe Form wie „schon in der Bibliothek“**: Kennung, Satz, Titel.
-    # Bis zum grossen Pruefgang kam hier ein nackter Satz, dort ein Objekt -
+    # Bis zum 26.09.2026 kam hier ein nackter Satz, dort ein Objekt -
     # fuer dieselbe Aussage „hast du schon“ zwei Formen, und wer auf
     # ``detail.code`` sah, fand bei der einen nichts.
     detail = zweite.json()["detail"]
@@ -712,8 +712,8 @@ async def test_ausfall_bei_der_anfrage_bekommt_kennung_und_dienst(
     Der gemeldete Fall: Ein englisches Konto fragt waehrend eines
     Radarr-Ausfalls an und bekommt nach 22,7 Sekunden eine deutsche Absage
     ohne Kennung - "Radarr antwortet nicht (Zeitüberschreitung)." als
-    blosser Text, den die Oberflaeche nicht uebersetzen kann (Pruefgang,
-    26.09.2026). Radarr selbst liefert die Kennung laengst
+    blosser Text, den die Oberflaeche nicht uebersetzen kann.
+    Radarr selbst liefert die Kennung laengst
     (``code="arr_timeout", service="Radarr"`` in ``client.py``); sie muss nur
     noch nach draussen durchgereicht werden, wie es der NEX-Weg schon tut.
     """

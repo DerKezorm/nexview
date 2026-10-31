@@ -1,6 +1,6 @@
 """Wann eine Fassung "bereit" heisst - und dass jeder ihrer Gruende einen Text hat.
 
-Grosser Pruefgang, 26.09.2026: Eine neue Fassung ohne Profil und Ordner stand
+Fall vom 26.09.2026: Eine neue Fassung ohne Profil und Ordner stand
 in ``/api/config`` als bereit, die Anfrage darin wurde angenommen und stand
 fuer immer auf "wird gesucht"; nexcrate suchte nie. Und der Grund
 ``fed_by_source`` stand roh in der Oberflaeche, in beiden Sprachen.

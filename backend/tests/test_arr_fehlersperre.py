@@ -62,7 +62,7 @@ class LahmerKalenderClient:
 async def test_haengende_instanz_bremst_auch_den_kalender_nur_einmal(monkeypatch) -> None:
     """Derselbe Befund wie oben, nur fuer den Kalender.
 
-    Bis zum Pruefgang (26.09.2026) fehlte hier die Fehlersperre: Jeder
+    Bis zum 26.09.2026 fehlte hier die Fehlersperre: Jeder
     Kalenderaufruf einer haengenden Instanz wartete erneut das volle
     Zeitlimit ab (15 bis 38 Sekunden Ladeanzeige), obwohl derselbe Schutz
     fuer die Bibliothek schon bestand.

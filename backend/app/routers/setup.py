@@ -76,7 +76,7 @@ def erster_administrator(payload: SetupAdminCreate) -> User:
         # ist aber freiwillig und kommt spaet; wer ihn uebersprang oder den
         # Reiter vorher schloss, bekam bei der naechsten Anmeldung ein 403
         # ``email_unverified`` und hatte ohne Mailserver keinen Weg zurueck in
-        # die eigene Installation (Befund aus dem grossen Pruefgang). Der
+        # die eigene Installation. Der
         # Tippfehler, gegen den die Bestaetigung schuetzen sollte, ist das
         # kleinere Uebel: Er trifft nur Mails an diese Adresse, und das Profil
         # zeigt sie jederzeit an. Einen Betreiber, der schon mit unbestaetigter

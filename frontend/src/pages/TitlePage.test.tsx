@@ -159,7 +159,7 @@ describe('die Filmreihe', () => {
 })
 
 describe('wenn der Weg nicht antwortet', () => {
-  /* Prüfgang 26.09.2026: Während nexcrate neu startete, stand ein fertig
+  /* Fall vom 26.09.2026: Während nexcrate neu startete, stand ein fertig
      geladener Film als „Nicht angefragt“ da. Jetzt zeigt die Seite den letzten
      bekannten Stand und sagt dazu, dass er nicht bestätigt ist. */
   it('sagt dazu, dass der Stand der zuletzt bekannte ist', async () => {

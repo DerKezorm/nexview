@@ -45,7 +45,7 @@ export function AdminAddressSettings() {
   }, [settingsQuery.data])
 
   // Ändert die Adresse eine Rückleitadresse, die ein Anmelde-Anbieter kennt,
-  // fragt der Server erst zurück (409 `public_url_change`, Bauplan 04).
+  // fragt der Server erst zurück (409 `public_url_change`).
   const [frage, setFrage] = useState<AdressFrage | null>(null)
   const saveMutation = useMutation({
     mutationFn: (bestaetigt: boolean = false) =>

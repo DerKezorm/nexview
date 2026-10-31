@@ -1,7 +1,7 @@
 /**
  * Die aufgeklappte Staffel, wenn der Beschaffungsweg nicht antwortet.
  *
- * Prüfgang 26.09.2026: Bei einer stummen nexcrate stand jede Folge als
+ * Fall vom 26.09.2026: Bei einer stummen nexcrate stand jede Folge als
  * „fehlt noch“ da, ohne Hinweis. Jetzt sagt die Staffel dazu, dass es der
  * zuletzt bekannte Stand ist, mit demselben Satz wie die Titelseite.
  */

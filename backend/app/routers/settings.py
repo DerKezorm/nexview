@@ -141,7 +141,7 @@ class SettingsUpdate(BaseModel):
     webhook_basis_url: str | None = Field(default=None, max_length=255)
     # Taegliche Nachfrage bei GitHub nach einer neueren Version.
     update_check: bool | None = None
-    # Anmeldung mit Passwort fuer alle (Bauplan 01); aus nur mit aktivem Anbieter.
+    # Anmeldung mit Passwort fuer alle; aus nur mit aktivem Anbieter.
     password_login: bool | None = None
     # --- Sicherungen -------------------------------------------------------
     # Regelmaessig sichern. Bis 0.22 entstand eine automatische Sicherung nur

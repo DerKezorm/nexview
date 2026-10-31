@@ -516,7 +516,7 @@ def test_sonarr_folgen_kommen_bis_in_die_antwort(
 def test_sonarr_kalender_ueber_echten_http_aufruf_zeigt_laufende_serie(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nachgestellter Fall aus dem Prüfgang (25./26.09.2026): eine laufende, schon
+    """Nachgestellter Fall (25./26.09.2026): eine laufende, schon
     im Bestand befindliche Serie ohne neue Staffel muss trotzdem mit
     Staffel und Folgennummer im Kalender ankommen.
 
@@ -675,7 +675,7 @@ def _sonarr_kalender_attrappe(request: httpx.Request) -> httpx.Response:
 def test_folge_am_letzten_tag_des_fensters_fehlt_nicht(
     admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nachgestellter Fall aus dem Prüfgang (25./26.09.2026, Arr-Betrieb, unabhaengig
+    """Nachgestellter Fall (25./26.09.2026, Arr-Betrieb, unabhaengig
     zweimal gesehen): Fuer die Woche 21.-27.09.2026 fehlte "One
     Piece" S23E25 (27.09., 14:15 UTC) im Kalender, obwohl Sonarrs eigener
     Kalender die Folge fuer genau diesen Zeitraum nennt. Ursache:
@@ -850,7 +850,7 @@ async def test_radarr_client_polstert_das_ende_um_einen_tag(
 def test_fremder_bibliotheksbestand_zeigt_ehrlich_in_der_bibliothek(
     arr_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Nachgestellter Fall aus dem Prüfgang (25.09.2026): Eine Serie, die schon in
+    """Nachgestellter Fall (25.09.2026): Eine Serie, die schon in
     Sonarr liegt, aber ueber Nexview nie angefragt wurde (kein Datensatz in
     ``requests_service.badges_for``), darf nicht wie eine eigene Anfrage
     aussehen. Zuvor setzte der Kalender ``status="downloaded"`` allein aus

@@ -164,6 +164,16 @@ export function WasNeuFenster({
                   <p className="mt-1.5 text-sm leading-relaxed text-mist-300">
                     <Betont text={abschnitt.body} />
                   </p>
+                  {abschnitt.link && (
+                    <a
+                      href={abschnitt.link.href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-2.5 inline-flex rounded-full bg-accent-500 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-accent-400"
+                    >
+                      {abschnitt.link.label}
+                    </a>
+                  )}
                 </li>
               ))}
             </ol>

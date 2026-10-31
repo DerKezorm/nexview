@@ -26,6 +26,7 @@ import { describe, expect, it } from 'vitest'
 // und ein Eintrag ohne sie wird im Fenster lautlos verworfen.
 import de from '../i18n/de.wasneu.json'
 import en from '../i18n/en.wasneu.json'
+import { istEintrag } from './wasNeuEintrag'
 
 /** Muss zu `istEintrag()` in WasNeuFenster.tsx passen. */
 const PFLICHTFELDER = ['lead', 'sections', 'smallTitle', 'small'] as const
@@ -41,6 +42,12 @@ function eintraege(datei: unknown): Record<string, Eintrag> {
 describe('„Alles, was neu ist"', () => {
   for (const [sprache, datei] of Object.entries(SPRACHEN)) {
     const alle = eintraege(datei)
+
+    // ⚠️ 1.4.0 stand eine Ebene zu hoch, neben `entries` statt darin. Das Fenster
+    // fand es nie, und jede Prüfung hier sah nur, was in `entries` steht.
+    it(`${sprache}: Einträge stehen nur unter entries`, () => {
+      expect(Object.keys((datei as { whatsNew: object }).whatsNew)).toEqual(['entries'])
+    })
 
     it(`${sprache}: jeder Eintrag hat alle Pflichtfelder`, () => {
       const unvollstaendig: string[] = []
@@ -83,6 +90,20 @@ describe('„Alles, was neu ist"', () => {
       }
     })
   }
+
+  it('nimmt einen Link unter einem Abschnitt nur nach https', () => {
+    const mit = (link: unknown) => ({
+      lead: 'Text',
+      sections: [{ title: 'Titel', where: 'Ort', body: 'Text', link }],
+      smallTitle: '',
+      small: [],
+    })
+    expect(istEintrag(mit({ label: 'App Store', href: 'https://apps.apple.com/app/id1' }))).toBe(true)
+    expect(istEintrag(mit({ label: 'App Store', href: 'http://apps.apple.com/app/id1' }))).toBe(false)
+    expect(istEintrag(mit({ label: 'App Store', href: 'javascript:void(0)' }))).toBe(false)
+    expect(istEintrag(mit({ label: ' ', href: 'https://apps.apple.com/app/id1' }))).toBe(false)
+    expect(istEintrag(mit('https://apps.apple.com/app/id1'))).toBe(false)
+  })
 
   it('beide Sprachen kennen dieselben Fassungen', () => {
     // Sonst sieht ein Teil der Nutzer das Fenster und der andere nicht — und

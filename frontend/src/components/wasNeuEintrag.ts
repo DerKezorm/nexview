@@ -13,9 +13,24 @@ import type { TFunction } from 'i18next'
 /** Der redaktionelle Text zu einer Fassung, wie er in den Sprachdateien steht. */
 export type WasNeuEintrag = {
   lead: string
-  sections: { title: string; where: string; body: string }[]
+  /** `link` wahlweise unter dem Text eines Abschnitts, etwa in den App Store. */
+  sections: { title: string; where: string; body: string; link?: WasNeuLink }[]
   smallTitle: string
   small: string[]
+}
+
+export type WasNeuLink = { label: string; href: string }
+
+/** Ein Link fuehrt nur nach https, nie zu einem Skript. */
+function istLink(wert: unknown): wert is WasNeuLink {
+  if (!wert || typeof wert !== 'object') return false
+  const link = wert as Partial<WasNeuLink>
+  return (
+    typeof link.label === 'string' &&
+    link.label.trim() !== '' &&
+    typeof link.href === 'string' &&
+    link.href.startsWith('https://')
+  )
 }
 
 /**
@@ -29,7 +44,12 @@ export type WasNeuEintrag = {
 export function istEintrag(wert: unknown): wert is WasNeuEintrag {
   if (!wert || typeof wert !== 'object') return false
   const k = wert as Partial<WasNeuEintrag>
-  return typeof k.lead === 'string' && Array.isArray(k.sections) && Array.isArray(k.small)
+  return (
+    typeof k.lead === 'string' &&
+    Array.isArray(k.sections) &&
+    Array.isArray(k.small) &&
+    k.sections.every((abschnitt) => abschnitt?.link === undefined || istLink(abschnitt.link))
+  )
 }
 
 /**

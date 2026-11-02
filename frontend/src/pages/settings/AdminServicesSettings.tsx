@@ -35,6 +35,7 @@ import { DownloadKollision } from "./DownloadKollision";
 import { WebhookZeile } from "./WebhookZeile";
 import { useRegionen } from "../../hooks/useRegionen";
 import { useConfig } from "../../hooks/useConfig";
+import { sprachOptionen } from "../../lib/tmdbSprachen";
 
 type TestService = "tmdb" | "radarr" | "sonarr" | "radarr_uhd" | "sonarr_uhd";
 
@@ -1387,8 +1388,17 @@ export function AdminServicesSettings({
                   }
                   className="rounded-xl border border-ink-700 bg-ink-900 px-4 py-2.5 text-mist-100 focus:border-accent-500 focus:outline-none"
                 >
-                  <option value="de">Deutsch</option>
-                  <option value="en">English</option>
+                  {/* Am gespeicherten Wert, nicht am Entwurf: Wer von einem
+                      unbekannten Wert weg und wieder zurück will, findet ihn so
+                      noch in der Liste. */}
+                  {sprachOptionen(
+                    settingsQuery.data?.default_language ??
+                      draft.default_language,
+                  ).map((sprache) => (
+                    <option key={sprache.code} value={sprache.code}>
+                      {sprache.name}
+                    </option>
+                  ))}
                 </select>
                 <span className="text-xs leading-relaxed text-mist-600">
                   {t("settings.languageHint")}

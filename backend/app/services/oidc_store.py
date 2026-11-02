@@ -425,7 +425,7 @@ class SqlStore:
             # Die Adresse des Anbieters darf nie ein Konto finden (``User.email_origin``).
             email_origin="" if bestaetigt or not adresse else "oidc",
             display_name=name,
-            language=settings.default_language,
+            language=settings.kontosprache,
             auto_approve=False,
             **vorgaben,
         )

@@ -693,7 +693,7 @@ def _anlegen(db: Session, settings: AppSettings, account: ExternalAccount) -> Us
         password_hash=unusable_password(),
         email=tokens.normalize_email(account.email) if account.email else None,
         display_name=account.username,
-        language=settings.default_language,
+        language=settings.kontosprache,
         # Neue Konten muessen ihre Anfragen freigeben lassen. Zugriff auf die
         # Bibliothek zu haben heisst nicht, ungefragt herunterladen zu duerfen.
         # Eine Einladung darf das je Film und Serie anders sehen - diese Haken

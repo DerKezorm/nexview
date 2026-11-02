@@ -501,9 +501,10 @@ async def accept_invitation(
         # Wer den Link aus der Mail geoeffnet hat, hat die Adresse damit belegt.
         email_verified=True,
         display_name=(payload.display_name or "").strip() or name,
-        # Neue Konten starten in der Standardsprache der Installation. Umstellen
+        # Neue Konten starten in der Standardsprache der Installation, als
+        # Oberflaeche gelesen (``kontosprache``: ``fr`` wird ``en``). Umstellen
         # kann sie jeder danach jederzeit oben rechts.
-        language=settings.default_language,
+        language=settings.kontosprache,
         **einladungen.kontowerte(token, wunsch, bewertung),
         **entscheidung,
     )

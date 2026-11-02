@@ -8,6 +8,7 @@ Papierkorb, Rueckkanal, Instanzen), stehen hinter der Grenze in
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import asdict
 from typing import Annotated, Any, Literal
 
@@ -73,6 +74,10 @@ INSTANZ_FELDER = frozenset(
 
 logger = logging.getLogger("nexview.settings")
 
+#: Was TMDB als ``language`` nimmt: ISO 639-1, wahlweise mit Land nach
+#: ISO 3166-1 (``fr``, ``pt-BR``). Ohne Land haengt ``TmdbClient`` die Region an.
+TMDB_SPRACHE = re.compile(r"^[a-z]{2}(-[A-Z]{2})?$")
+
 
 class SettingsUpdate(BaseModel):
     """Leere Felder bei Geheimnissen bedeuten: unveraendert lassen."""
@@ -88,7 +93,10 @@ class SettingsUpdate(BaseModel):
     radarr_uhd_name: str | None = Field(default=None, max_length=60)
     sonarr_uhd_name: str | None = Field(default=None, max_length=60)
     default_region: str | None = Field(default=None, min_length=2, max_length=2)
-    default_language: str | None = Field(default=None, min_length=2, max_length=5)
+    # Die Sprache der Titel und Texte von TMDB, geprueft in ``update_settings``
+    # (``TMDB_SPRACHE``). Ohne Laengengrenze hier, damit auch ein zu langer
+    # Wert die eigene Meldung bekommt statt Pydantics.
+    default_language: str | None = None
     poll_interval_seconds: int | None = Field(default=None, ge=30, le=3600)
     demo_mode: str | None = None
     # Die Betriebsart der Beschaffung: ``arr`` oder ``nex`` (Bauplan
@@ -609,6 +617,16 @@ def update_settings(
             detail=meldungen.meldung(
                 "demo_mode_invalid",
                 "Demo-Modus muss 'auto', 'on' oder 'off' sein.",
+            ),
+        )
+    if payload.default_language is not None and not TMDB_SPRACHE.fullmatch(
+        payload.default_language
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail=meldungen.meldung(
+                "tmdb_language_invalid",
+                "Die Sprache muss ein Kürzel wie 'fr' oder 'pt-BR' sein.",
             ),
         )
     if payload.beschaffung is not None and payload.beschaffung not in BESCHAFFUNGSARTEN:

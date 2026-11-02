@@ -35,6 +35,20 @@ MERKER = "nexview_einstellungen"
 if TYPE_CHECKING:  # nur fuer die Typangabe - vermeidet einen Ringschluss
     from ..models import User
 
+
+def oberflaechensprache(sprache: str | None) -> str:
+    """Die Oberflaechensprache zu einer TMDB-Sprache: ``de`` oder ``en``.
+
+    ``default_language`` darf jede Sprache sein, die TMDB kennt (``fr``,
+    ``pt-BR``, ``de-AT``); sie bestimmt, in welcher Sprache Titel und Texte
+    kommen. Oberflaeche und Mailvorlagen gibt es aber nur auf Deutsch und
+    Englisch. Wo die Einstellung als Sprache eines **Kontos** oder einer
+    **Mail** dient, geht sie deshalb hier durch: Deutsch bleibt Deutsch, alles
+    andere wird Englisch. Ein franzoesisches Haus bekaeme sonst deutsche Mails,
+    denn die Vorlagen fragen nur ``startswith("en")``.
+    """
+    return "de" if (sprache or "").lower().startswith("de") else "en"
+
 # Schluessel, die als Geheimnis behandelt werden.
 SECRET_KEYS = frozenset(
     {
@@ -413,6 +427,11 @@ class AppSettings:
     @property
     def mail_configured(self) -> bool:
         return bool(self.smtp_host and self.smtp_from_address)
+
+    @property
+    def kontosprache(self) -> str:
+        """Startsprache neuer Konten und Sprache von Mails ohne Konto (``oberflaechensprache``)."""
+        return oberflaechensprache(self.default_language)
 
     def link(self, pfad: str) -> str:
         """Vollstaendige Adresse fuer einen Link in einer E-Mail."""
@@ -1015,7 +1034,13 @@ def for_user(settings: AppSettings, user: User) -> AppSettings:
     * **Textsprache.** In welcher Sprache TMDB Titel und Beschreibungen
       liefert, richtet sich nach der Oberflaechensprache. Wer die Oberflaeche
       auf Englisch stellt, will keine deutschen Inhaltsangaben - alles andere
-      waere schlicht inkonsequent.
+      waere schlicht inkonsequent. ⚠️ Ausnahme ist die Vorgabe des Hauses
+      selbst: Steht sie auf einer Sprache, die es als Oberflaeche nicht gibt
+      (``fr``, ``pt-BR``), starten Konten auf Englisch (``kontosprache``).
+      Gilt hier stur die Oberflaeche, bekaeme genau dieses Haus nie
+      franzoesische Titel. Deshalb behaelt jedes Konto, dessen Oberflaeche
+      der Vorgabe entspricht, die **volle** Vorgabe (``fr``, ``de-AT``); nur
+      wer auf die andere Oberflaechensprache umstellt, bekommt deren Texte.
     * **Region.** Sie beeinflusst Kinostarts und Verfuegbarkeit. Wer nichts
       Eigenes eingestellt hat, bekommt die Vorgabe des Administrators.
 
@@ -1032,10 +1057,13 @@ def for_user(settings: AppSettings, user: User) -> AppSettings:
     unveraendert; das sind Sache des Servers, nicht des Benutzers.
     """
     pruef_region = (user.rating_region or "").upper() or settings.default_region
+    textsprache = settings.default_language
+    if user.language and user.language != settings.kontosprache:
+        textsprache = user.language
 
     return replace(
         settings,
-        default_language=user.language or settings.default_language,
+        default_language=textsprache,
         default_region=user.discover_region or settings.default_region,
         age_limit=user.age,
         rating_region=pruef_region,

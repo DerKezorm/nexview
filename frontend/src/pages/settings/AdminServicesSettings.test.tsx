@@ -172,3 +172,48 @@ it('zeigt Radarr/Sonarr/Umstieg nicht, solange unbekannt ist, ob nexcrate bescha
   // Und danach - echter NEX-Betrieb - bleibt Radarr weiterhin weg.
   expect(screen.queryByRole('tab', { name: /Radarr/ })).toBeNull()
 })
+
+/** Wie `antworten`, aber `/api/settings` mit einer gespeicherten Sprache. */
+function mitSprache(sprache: string) {
+  antworten({ radarr_configured: true })
+  const sonst = holen.getMockImplementation()
+  holen.mockImplementation((pfad: string) => {
+    if (pfad === '/api/settings') {
+      return Promise.resolve({ default_language: sprache, default_region: 'DE', demo_mode: 'auto' })
+    }
+    return sonst!(pfad)
+  })
+}
+
+/** Das Auswahlfeld der Sprache, erkannt an seiner Beschriftung. */
+async function sprachfeld(): Promise<HTMLSelectElement> {
+  const feld = await screen.findByRole('combobox', { name: /Standardsprache/ })
+  return feld as HTMLSelectElement
+}
+
+it('bietet TMDB-Sprachen wie Französisch an, nicht nur Deutsch und Englisch', async () => {
+  // Issue #15: Titel auf Französisch, Oberfläche auf Englisch.
+  mitSprache('fr')
+  rendernSchlicht(<AdminServicesSettings startUnter="general" />)
+
+  const feld = await sprachfeld()
+  await waitFor(() => {
+    expect(feld.value).toBe('fr')
+  })
+  const optionen = [...feld.options].map((o) => [o.value, o.textContent])
+  expect(optionen).toContainEqual(['fr', 'Français'])
+  expect(optionen).toContainEqual(['pt-BR', 'Português (Brasil)'])
+})
+
+it('behält eine gespeicherte Sprache, die nicht in der Liste steht', async () => {
+  // ⚠️ Ohne eigene Option zeigte das Feld still „Deutsch“, und das nächste
+  // Speichern hätte `de-AT` zu `de` gemacht.
+  mitSprache('de-AT')
+  rendernSchlicht(<AdminServicesSettings startUnter="general" />)
+
+  const feld = await sprachfeld()
+  await waitFor(() => {
+    expect(feld.value).toBe('de-AT')
+  })
+  expect([...feld.options].filter((o) => o.value === 'de-AT')).toHaveLength(1)
+})

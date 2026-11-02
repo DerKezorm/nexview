@@ -543,8 +543,9 @@ async def invite(payload: InvitationCreate, admin: AdminUser, db: DbSession) -> 
 
     # Bewusst die Standardsprache der Installation, nicht die des einladenden
     # Admins: der Eingeladene hat noch kein Konto und damit keine eigene
-    # Einstellung. Die Sprache des Admins waere reiner Zufall.
-    zustellung = await accounts.send_invitation(settings, token, roh, settings.default_language)
+    # Einstellung. Die Sprache des Admins waere reiner Zufall. ``kontosprache``,
+    # weil die Vorlagen nur Deutsch und Englisch kennen.
+    zustellung = await accounts.send_invitation(settings, token, roh, settings.kontosprache)
     logger.info(
         "Invitation for %s created by %r (mail %s)",
         token.email,

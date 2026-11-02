@@ -644,7 +644,11 @@ async def abschliessen(
 
     # ---- 3. Schreiben, in einer Transaktion ------------------------------
     besitzer_zeile = zeilen[eingabe.besitzer.seerr_id]
-    sprache = str(aenderungen.get("default_language") or eingabe.besitzer.language or "de")
+    # Die Sprache der angelegten Konten ist eine Oberflaechensprache, auch wenn
+    # die Vorgabe des Hauses eine TMDB-Sprache wie ``fr`` ist.
+    sprache = settings_service.oberflaechensprache(
+        str(aenderungen.get("default_language") or eingabe.besitzer.language or "de")
+    )
     #: (Seerr-Nummer, Zeile, Nexview-Nummer, Rolle, Weg) je angelegtem Konto.
     angelegt: list[tuple[int, Kontozeile, int, Role, str]] = []
     abgelehnt: list[dict[str, object]] = []

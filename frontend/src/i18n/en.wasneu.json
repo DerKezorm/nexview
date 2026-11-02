@@ -797,6 +797,21 @@
           "The notice for 1.4.0 never appeared. Its text now sits in the window above, under 1.4.0.",
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.5.0": {
+        "lead": "Titles, overviews and search from TMDB now come in any language, not just German and English.",
+        "sections": [
+          {
+            "title": "Titles in your language",
+            "where": "Settings, Services, General, Default language",
+            "body": "More than twenty languages are now offered as the default language, such as French, Spanish, Dutch or Portuguese (Brazil). Lists, search and title pages then show titles and texts in that language. The interface and mail still exist in German and English: with another language, new accounts start in English and still get the titles in the chosen language."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The default language now applies to signed-in accounts as well: whoever uses the interface in the house language gets that language with its country, such as de-AT. Whoever switches to the other language at the top right gets the texts in that one.",
+          "With nexcrate 1.7.0, nexcrate also searches with the title in every language a profile asks for. The database does not change."
+        ]
       }
     }
   }

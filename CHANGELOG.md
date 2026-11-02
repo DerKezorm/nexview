@@ -12,6 +12,26 @@ tag exists for it.
 
 ---
 
+## 1.5.0 – 02.11.2026
+
+### Added
+
+- **Titles in any language.** The default language now offers more than twenty TMDB
+  languages, such as French, Spanish, Dutch or Portuguese (Brazil), instead of German and
+  English only. Lists, search and title pages show titles and texts in that language
+  ([#15](https://github.com/DerKezorm/nexview/issues/15)).
+
+### Changed
+
+- The interface and mail stay German or English: with another default language, new
+  accounts and invitations start in English.
+- The default language now reaches signed-in accounts: an account whose interface matches
+  the house language gets the full default language (`fr`, `de-AT`); one that switches to
+  the other interface language gets that one. Before, the interface language always won,
+  so the default had no effect on them.
+- A default language that is not a TMDB code (`fr`, `pt-BR`) is refused with
+  `tmdb_language_invalid`.
+
 ## 1.4.1 – 31.10.2026
 
 ### Added

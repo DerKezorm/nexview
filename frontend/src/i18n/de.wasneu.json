@@ -797,6 +797,21 @@
           "Der Hinweis zu 1.4.0 ist nie erschienen. Sein Text steht jetzt oben im Fenster unter 1.4.0.",
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.5.0": {
+        "lead": "Titel, Beschreibungen und Suche von TMDB gibt es jetzt in jeder Sprache, nicht mehr nur auf Deutsch und Englisch.",
+        "sections": [
+          {
+            "title": "Titel in deiner Sprache",
+            "where": "Einstellungen, Dienste, Allgemein, Standardsprache",
+            "body": "Als Standardsprache stehen jetzt gut zwanzig Sprachen zur Wahl, etwa Französisch, Spanisch, Niederländisch oder Portugiesisch (Brasilien). Listen, Suche und Titelseiten zeigen Titel und Texte dann in dieser Sprache. Oberfläche und Mails gibt es weiter auf Deutsch und Englisch: Bei einer anderen Sprache starten neue Konten auf Englisch und bekommen trotzdem die Titel in der gewählten Sprache."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Standardsprache wirkt jetzt auch für angemeldete Konten: Wer die Oberfläche in der Sprache des Hauses hat, bekommt dessen Sprache samt Land, etwa de-AT. Wer oben rechts auf die andere Sprache umstellt, bekommt die Texte in dieser.",
+          "Mit nexcrate 1.7.0 sucht nexcrate zusätzlich mit dem Titel in jeder Sprache, die ein Profil verlangt. An der Datenbank ändert sich nichts."
+        ]
       }
     }
   }

@@ -21,6 +21,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import math
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import TYPE_CHECKING, Any
@@ -114,7 +115,8 @@ class NexDownload:
     jahr: int | None
     release: str
     folgen: list[list[int]]
-    fortschritt: float
+    #: Ganze Prozent wie beim Arr-Weg; nexcrate meldet Kommazahlen (84.5).
+    fortschritt: int
     groesse: int
     rest: int
     erster: dict[str, Any]
@@ -153,6 +155,20 @@ class NexRundgang:
         return {}
 
 
+def _prozent(wert: Any) -> int:
+    """nexcrate meldet den Fortschritt so, wie das Download-Programm ihn sagt,
+    also auch mit Komma (qBittorrent: 84.5). Die Seite zeigt ganze Prozent,
+    und `LaufZeile` nimmt nur ganze Zahlen: Ein Komma brachte die ganze Liste
+    mit 500 zu Fall (Issue #16)."""
+    try:
+        zahl = float(wert or 0.0)
+    except (TypeError, ValueError):
+        return 0
+    if not math.isfinite(zahl):
+        return 0
+    return max(0, min(100, round(zahl)))
+
+
 def aus_antwort(eintrag: dict[str, Any]) -> NexDownload | None:
     """Ein Eintrag aus ``GET /queue`` bzw. ``GET /problems``."""
     titel = eintrag.get("title") or {}
@@ -174,7 +190,7 @@ def aus_antwort(eintrag: dict[str, Any]) -> NexDownload | None:
         jahr=None,
         release=str(eintrag.get("release") or ""),
         folgen=folgen,
-        fortschritt=float(eintrag.get("progress") or 0.0),
+        fortschritt=_prozent(eintrag.get("progress")),
         groesse=int(eintrag.get("size_bytes") or 0),
         rest=int(eintrag.get("remaining_bytes") or 0),
         erster={

@@ -463,6 +463,31 @@ def test_ein_gescheiterter_download_laeuft_nicht(
     assert daten["gescheitert"] == 2
 
 
+def test_ein_fortschritt_mit_komma_bricht_die_liste_nicht(
+    nex_client_admin: TestClient, nexcrate: FakeNexcrate
+) -> None:
+    """Issue #16: qBittorrent meldet 84.5 Prozent, nexcrate reicht es durch,
+    und ``LaufZeile`` nahm nur ganze Zahlen - die ganze Seite antwortete 500.
+    Gezeigt werden ganze Prozent, begrenzt auf 0 bis 100."""
+    nexcrate.queue = [
+        {**_download(1, "downloading"), "progress": 84.5},
+        {**_download(2, "downloading"), "progress": 99.6},
+        {**_download(3, "downloading"), "progress": 100.4},
+        {**_download(4, "downloading"), "progress": None},
+    ]
+
+    antwort = nex_client_admin.get("/api/admin/downloads")
+
+    assert antwort.status_code == 200, antwort.text
+    fortschritt = {z["titel"]: z["fortschritt"] for z in antwort.json()["laufend"]}
+    assert fortschritt == {
+        "Example 1": 84,
+        "Example 2": 100,
+        "Example 3": 100,
+        "Example 4": 0,
+    }
+
+
 # --------------------------------------------------------------------------
 # Gesundheit ohne nexcrates Satz (Rundgang-Befund)
 

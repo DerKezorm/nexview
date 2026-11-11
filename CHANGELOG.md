@@ -12,6 +12,14 @@ tag exists for it.
 
 ---
 
+## 1.5.1 – 11.11.2026
+
+### Fixed
+
+- **Downloads page with nexcrate.** A download at a fractional percentage (qBittorrent
+  reports 84.5) made the whole admin Downloads page fail with an error. Progress is now
+  shown in whole percent ([#16](https://github.com/DerKezorm/nexview/issues/16)).
+
 ## 1.5.0 – 02.11.2026
 
 ### Added

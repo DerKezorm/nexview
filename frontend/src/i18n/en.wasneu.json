@@ -812,6 +812,20 @@
           "The default language now applies to signed-in accounts as well: whoever uses the interface in the house language gets that language with its country, such as de-AT. Whoever switches to the other language at the top right gets the texts in that one.",
           "With nexcrate 1.7.0, nexcrate also searches with the title in every language a profile asks for. The database does not change."
         ]
+      },
+      "1.5.1": {
+        "lead": "A fix for everyone running nexview with nexcrate.",
+        "sections": [
+          {
+            "title": "Downloads page with nexcrate",
+            "where": "Menu under your name, Downloads",
+            "body": "When a download sat at a fractional percentage, such as 84.5 from qBittorrent, the whole page failed with an error. It now shows whole percent and stays up."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

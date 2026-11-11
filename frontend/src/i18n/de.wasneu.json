@@ -812,6 +812,20 @@
           "Die Standardsprache wirkt jetzt auch für angemeldete Konten: Wer die Oberfläche in der Sprache des Hauses hat, bekommt dessen Sprache samt Land, etwa de-AT. Wer oben rechts auf die andere Sprache umstellt, bekommt die Texte in dieser.",
           "Mit nexcrate 1.7.0 sucht nexcrate zusätzlich mit dem Titel in jeder Sprache, die ein Profil verlangt. An der Datenbank ändert sich nichts."
         ]
+      },
+      "1.5.1": {
+        "lead": "Eine Fehlerbehebung für alle, die nexview mit nexcrate betreiben.",
+        "sections": [
+          {
+            "title": "Downloads-Seite mit nexcrate",
+            "where": "Menü unter deinem Namen, Downloads",
+            "body": "Lief ein Download mit einem krummen Fortschritt, etwa 84,5 Prozent aus qBittorrent, brach die ganze Seite mit einem Fehler ab. Jetzt zeigt sie ganze Prozent und bleibt stehen."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

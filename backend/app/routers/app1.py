@@ -361,6 +361,10 @@ _zweitschrift(kids_router, "/wishes", kids.router, kids.create_wish, "POST", "Wi
 #: gegen die wirklichen Routen, ``app1_abdruck.json`` die Antwortfelder.
 ZUGESAGT = (
     "/api/app/1/pairing/{pairing_id}/key",
+    # Fernseher koppeln (docs/app-device-pairing.md)
+    "/api/app/1/device/code",
+    "/api/app/1/device/token",
+    "/api/app/1/hello",
     "/api/app/1/me",
     "/api/app/1/requests/quota",
     "/api/app/1/storage/me",

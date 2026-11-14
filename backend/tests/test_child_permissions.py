@@ -63,6 +63,14 @@ KINDER_ERLAUBT = {
     # Kinderkontos, und auch den nur mit einem Code, den seine Eltern erzeugt
     # haben (``routers/app_kopplung.py``).
     "/api/app/1/pairing/{pairing_id}/key",
+    # Fernseher koppeln (``routers/geraete_code.py``): Code holen und nachfragen
+    # gehen ohne Anmeldung, aus demselben Grund. Den Schluessel bekommt das
+    # Geraet erst, wenn ein Erwachsener den Code bestaetigt hat; die Seite dafuer
+    # (``/api/geraete-code/...``) haengt an NUR_ERWACHSENE. ``hello`` sagt nur,
+    # dass hier nexview antwortet, mit Fassung und oeffentlicher Adresse.
+    "/api/app/1/device/code",
+    "/api/app/1/device/token",
+    "/api/app/1/hello",
     "/api/setup/sicherung/pruefen",
     "/api/setup/sicherung/einspielen",
     # Der Umzug aus einer laufenden Seerr-Installation. Dieselbe Einordnung

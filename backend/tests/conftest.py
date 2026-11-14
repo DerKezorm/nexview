@@ -45,7 +45,7 @@ from app.models import (  # noqa: E402
     UserMediaServerAccount,
 )
 from app.security import hash_password  # noqa: E402
-from app.services import anmeldebremse  # noqa: E402
+from app.services import anmeldebremse, geraete_code  # noqa: E402
 from app.services.beschaffung.arr import library  # noqa: E402
 
 ADMIN = {
@@ -81,6 +81,8 @@ def clean_db() -> Iterator[None]:
     # eingibt, seine Zaehler in den naechsten, und der scheitert dann mit
     # 429 statt mit dem, was er eigentlich prueft.
     anmeldebremse.zuruecksetzen()
+    # Dasselbe fuer die Bremsen beim Koppeln von Fernsehern.
+    geraete_code.zuruecksetzen()
 
     # Der Merker von ``load_settings`` braucht hier bewusst **nichts**: Er
     # haengt an der Sitzung (``Session.info``), nicht am Prozess, und jede

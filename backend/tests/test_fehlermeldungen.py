@@ -120,6 +120,8 @@ def _kennungen_im_backend() -> set[str]:
             "NexcrateError",
             # Die Kopplung der iPhone-App: ``KopplungFehler("app_pairing_limit", ...)``.
             "KopplungFehler",
+            # Fernseher koppeln: ``GeraeteCodeFehler("device_code_busy", ...)``.
+            "GeraeteCodeFehler",
         ):
             gefunden.update(re.findall(klasse + r'\(\s*\n?\s*"([a-z0-9_]+)"', text))
         # Kennungen des OIDC-Rueckwegs: Sie erreichen die Oberflaeche nicht als

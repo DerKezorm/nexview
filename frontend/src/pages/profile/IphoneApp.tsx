@@ -8,6 +8,7 @@
 import { useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
 import { AppKoppeln } from '../../components/AppKoppeln'
 import { Button, Section } from '../../components/ui'
@@ -27,6 +28,12 @@ export function IphoneApp() {
       <Button type="button" variant="ghost" className="self-start" onClick={() => setOffen(true)}>
         {t('appConnect.button')}
       </Button>
+      <p className="text-sm text-mist-500">
+        {t('appConnect.tv')}{' '}
+        <Link to="/link" className="text-accent-400 underline underline-offset-4 hover:text-accent-300">
+          {t('deviceLink.title')}
+        </Link>
+      </p>
       <AppKoppeln
         offen={offen}
         pfad="/api/me/app-kopplung"

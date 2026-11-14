@@ -463,6 +463,13 @@
     "[].title",
     "[].tmdb_id"
   ],
+  "GET /api/app/1/hello": [
+    "app",
+    "device_code",
+    "name",
+    "url",
+    "version"
+  ],
   "GET /api/app/1/home/recent": [
     "[].backdrop_url",
     "[].completed_at",
@@ -1898,6 +1905,22 @@
     "trotzdem_gefragt",
     "user_id",
     "username"
+  ],
+  "POST /api/app/1/device/code": [
+    "device_code",
+    "expires_at",
+    "expires_in",
+    "interval",
+    "user_code",
+    "verification_uri",
+    "verification_uri_complete"
+  ],
+  "POST /api/app/1/device/token": [
+    "account.name",
+    "account.role",
+    "interval",
+    "key",
+    "status"
   ],
   "POST /api/app/1/favorites": [
     "created_at",

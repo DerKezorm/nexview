@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.7.0
+
+### Added
+
+- **Connect a TV with a code.** A TV app shows a short code and a QR code; you confirm it
+  on your phone or computer under `/link`, and the TV gets a key of its own with your
+  permissions, or, as a parent, with your child's. The key appears under API tokens (or
+  the child's devices) and can be revoked there. For app developers: two new calls under
+  `/api/app/1/device/`, described in `docs/app-device-pairing.md`.
+
 ## 1.6.0 – 14.11.2026
 
 ### Added

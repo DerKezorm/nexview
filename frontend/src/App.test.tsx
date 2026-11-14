@@ -176,3 +176,26 @@ describe('Wer welchen Seitenbaum bekommt', () => {
     expect(screen.queryByRole('button', { name: /^anmelden$/i })).toBeNull()
   })
 })
+
+describe('Zurück zum Code des Fernsehers', () => {
+  it('führt nach der Anmeldung über einen Anbieter zur gemerkten Seite', async () => {
+    // Der Rückweg vom Anbieter endet auf /; die Anmeldeseite hat sich den
+    // Code vorher gemerkt.
+    window.sessionStorage.setItem(
+      'nexview.nachAnmeldung',
+      JSON.stringify({ ziel: '/link?code=BCDF-GHJK', bis: Date.now() + 60_000 }),
+    )
+    zustand.user = ERWACHSEN
+    zeigen('/')
+    expect(await screen.findByRole('heading', { name: /fernseher verbinden/i })).toBeInTheDocument()
+    expect(window.sessionStorage.getItem('nexview.nachAnmeldung')).toBeNull()
+  })
+
+  it('bleibt ohne gemerkte Seite auf der Startseite', async () => {
+    window.sessionStorage.clear()
+    zustand.user = ERWACHSEN
+    zeigen('/')
+    expect((await screen.findAllByRole('link', { name: 'Stöbern' })).length).toBeGreaterThan(0)
+    expect(screen.queryByRole('heading', { name: /fernseher verbinden/i })).toBeNull()
+  })
+})

@@ -89,6 +89,12 @@ ROUTER_ORDNER = Path(__file__).resolve().parent.parent / "app" / "routers"
 #: "Ich habe nachgesehen, und diese Adresse kann dem Betreiberkonto nichts
 #: antun." Wer das nicht begruenden kann, haengt stattdessen die Wache dran.
 OHNE_SCHUTZ: dict[str, str] = {
+    "POST /api/geraete-code/bestaetigen": (
+        "``child_id`` ist nur je ein **eigenes Kind** (``children.kind_von``, sonst "
+        "404), und ein Kinderkonto ist nie der Betreiber. Ohne ``child_id`` gehoert "
+        "der Schluessel dem eigenen Konto. Das Konto selbst aendert sich nicht; ein "
+        "Geraet bekommt einen Schluessel dafuer, wie beim QR-Code fuer das Kindergeraet."
+    ),
     "POST /api/oidc/{slug}/link": (
         "Verknuepft das **eigene** Konto: ``{slug}`` ist der Anbieter, nicht ein "
         "Konto. Das Konto kommt aus der Sitzung, und das eigene Passwort wird "

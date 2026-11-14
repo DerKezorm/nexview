@@ -89,6 +89,9 @@ from .routers import (
     feedback as feedback_router,
 )
 from .routers import (
+    geraete_code as geraete_code_router,
+)
+from .routers import (
     hausordnung as hausordnung_router,
 )
 from .routers import (
@@ -372,8 +375,12 @@ app.include_router(v1_router.public_router)
 app.include_router(app1_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(app1_router.kids_router)
 app.include_router(app_kopplung_router.public_router)
+# Fernseher koppeln: Code holen und nachfragen, ebenfalls ohne Schluessel.
+app.include_router(geraete_code_router.public_router)
+app.include_router(geraete_code_router.hallo_router)
 # Code erzeugen und Geraete der Kinder: Oberflaeche, jede Adresse ``AdultUser``.
 app.include_router(app_kopplung_router.router, dependencies=NUR_ERWACHSENE)
+app.include_router(geraete_code_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(about_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(details_router.router, dependencies=NUR_ERWACHSENE)
 app.include_router(calendar_router.router, dependencies=NUR_ERWACHSENE)

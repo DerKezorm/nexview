@@ -233,4 +233,27 @@ describe('Anmelden über OIDC-Anbieter', () => {
       window.history.replaceState(null, '', '/')
     }
   })
+  it('merkt sich den Code eines Fernsehers für die Zeit nach der Anmeldung', async () => {
+    // Der QR-Code des Fernsehers führt auf /link?code=…; die Anmeldung über
+    // einen Anbieter kehrt aber auf / zurück.
+    window.sessionStorage.clear()
+    window.history.replaceState(null, '', '/link?code=BCDF-GHJK')
+    try {
+      rendern(<LoginPage />)
+      await waitFor(() => expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument())
+      expect(JSON.parse(window.sessionStorage.getItem('nexview.nachAnmeldung') ?? '{}').ziel).toBe(
+        '/link?code=BCDF-GHJK',
+      )
+    } finally {
+      window.history.replaceState(null, '', '/')
+      window.sessionStorage.clear()
+    }
+  })
+
+  it('merkt sich auf jeder anderen Seite nichts', async () => {
+    window.sessionStorage.clear()
+    rendern(<LoginPage />)
+    await waitFor(() => expect(screen.getByLabelText(/benutzername/i)).toBeInTheDocument())
+    expect(window.sessionStorage.getItem('nexview.nachAnmeldung')).toBeNull()
+  })
 })

@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useRef } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useQueryClient } from '@tanstack/react-query'
 
@@ -9,6 +9,7 @@ import { AppShell } from './components/AppShell'
 import { KidsShell } from './components/KidsShell'
 import { Logo } from './components/Logo'
 import { Spinner } from './components/ui'
+import { abholen as rueckwegAbholen } from './lib/nachAnmeldung'
 
 /* ---------------------------------------------------------------------------
  * Die Alltagsseiten - sie kommen mit dem ersten Laden.
@@ -71,6 +72,9 @@ const SettingsPage = lazy(() =>
 )
 const SetupPage = lazy(() => import('./pages/SetupPage').then((m) => ({ default: m.SetupPage })))
 const StatsPage = lazy(() => import('./pages/StatsPage').then((m) => ({ default: m.StatsPage })))
+const GeraetVerbindenPage = lazy(() =>
+  import('./pages/GeraetVerbindenPage').then((m) => ({ default: m.GeraetVerbindenPage })),
+)
 
 // Die Seiten aus einer E-Mail: Einladung, Passwort, Adressbestätigung. Sie
 // stehen alle in **einer** Datei, werden also auch als eine geholt - wer einen
@@ -183,6 +187,23 @@ function useNeuLadenBeiSprachwechsel() {
   }, [i18n.language, queryClient])
 }
 
+/**
+ * Nach der Anmeldung einmal zurück zum Code des Fernsehers, falls die
+ * Anmeldeseite ihn sich gemerkt hat (`lib/nachAnmeldung.ts`). Gebraucht vor
+ * allem nach dem Anmelden über einen Anbieter: Dessen Rückweg endet auf `/`.
+ */
+function useZurueckZumFernseherCode(user: ReturnType<typeof useAuth>['user']) {
+  const navigate = useNavigate()
+  const vorher = useRef<typeof user>(null)
+  useEffect(() => {
+    const geradeAngemeldet = !vorher.current && Boolean(user)
+    vorher.current = user
+    if (!geradeAngemeldet || user?.role === 'child') return
+    const ziel = rueckwegAbholen()
+    if (ziel) navigate(ziel, { replace: true })
+  }, [user, navigate])
+}
+
 export default function App() {
   const { status, user, needsSetup } = useAuth()
   useNeuLadenBeiSprachwechsel()
@@ -191,6 +212,7 @@ export default function App() {
   // Rendern stehen - der Link "Passwort vergessen" führte ins Leere.
   const { pathname } = useLocation()
   const oeffentlich = PUBLIC_PREFIXES.some((prefix) => pathname.startsWith(prefix))
+  useZurueckZumFernseherCode(user)
 
   if (oeffentlich) return <PublicRoutes />
   if (status === 'loading') return <BootScreen />
@@ -250,6 +272,8 @@ export default function App() {
         <Route path="suche" element={<SearchPage />} />
         <Route path="personen" element={<PeoplePage />} />
         <Route path="profil" element={<ProfilePage />} />
+        {/* Der Code vom Fernseher; der QR-Code dort führt mit ?code=… hierher. */}
+        <Route path="link" element={<GeraetVerbindenPage />} />
         <Route path="mag-ich" element={<FavoritesPage />} />
         <Route path="tickets" element={<TicketsPage />} />
         <Route path="tickets/:ticketId" element={<TicketPage />} />

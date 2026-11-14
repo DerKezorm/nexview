@@ -1105,6 +1105,47 @@ class AppKopplung(Base):
     )
 
 
+class GeraeteCode(Base):
+    """Ein Fernseher, der gekoppelt werden will: der Code auf dem Bildschirm.
+
+    Umgekehrt zur ``AppKopplung``: Dort zeigt der Browser den QR-Code und die
+    App scannt ihn. Ein Apple TV kann nicht scannen, also zeigt **das Geraet**
+    einen kurzen Code, und ein angemeldeter Mensch bestaetigt ihn im Browser
+    (``services/geraete_code.py``, Muster: OAuth Device Authorization Grant).
+
+    ⚠️ **Der Schluessel entsteht erst, wenn das Geraet nach der Bestaetigung
+    nachfragt**, wie bei der ``AppKopplung``. Gespeichert wird vom geheimen
+    Geraete-Code nur die Pruefsumme; sie ist zugleich der Schluessel der Zeile.
+
+    ``user_id`` ist leer, bis jemand bestaetigt; dann das Konto, dem der
+    Schluessel gehoeren wird (beim Kindergeraet das Kind). ``bestaetigt_von``
+    ist, wer bestaetigt hat (beim Kindergeraet das Elternteil).
+    """
+
+    __tablename__ = "geraete_codes"
+
+    geraet_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
+    #: Der Code zum Abtippen, ohne Bindestrich, nur aus ``geraete_code.ZEICHEN``.
+    benutzer_code: Mapped[str] = mapped_column(String(8), nullable=False, unique=True)
+    #: Der Name, den das Geraet beim Start nennt.
+    geraet: Mapped[str] = mapped_column(String(80), nullable=False, default="")
+    #: Welche App fragt, zum Beispiel "nexcinema". Nur zur Anzeige.
+    app: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    #: ``wartet``, ``bestaetigt``, ``abgelehnt``, ``abholend``, ``abgeholt``.
+    stand: Mapped[str] = mapped_column(String(16), nullable=False, default="wartet")
+    user_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    bestaetigt_von: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    api_key_id: Mapped[int | None] = mapped_column(
+        ForeignKey("api_keys.id", ondelete="SET NULL")
+    )
+
+
 class BeendeteSitzung(Base):
     """Eine Sitzung, die mit "Abmelden" beendet wurde - die Merkliste dazu.
 

@@ -699,6 +699,26 @@ TEXTE: dict[str, tuple[str, str]] = {
         'Withdraw a QR code',
         'Closes a code nobody has scanned yet. A code already used stays; revoke its key instead.',
     ),
+    'POST /api/geraete-code/pruefen': (
+        'Look up the code a TV shows',
+        (
+            "Answers with the device name and app behind a waiting code, and the caller's own "
+            'children it could be confirmed for instead. Unknown, expired and used codes all answer '
+            '404 `device_code_not_found`; wrong codes count towards the sign-in brake.'
+        ),
+    ),
+    'POST /api/geraete-code/bestaetigen': (
+        'Confirm the code a TV shows',
+        (
+            'The device gets a key of its own the next time it polls, with the rights of the caller '
+            "or, with `child_id`, of one of the caller's own children (needs the right to keep child "
+            'accounts). `name` renames the device. A code can be answered once.'
+        ),
+    ),
+    'POST /api/geraete-code/ablehnen': (
+        'Decline the code a TV shows',
+        'The device learns `denied` the next time it polls and gets no key.',
+    ),
     'GET /api/children/{child_id}/geraete': (
         "List a child's devices",
         "The keys of one of the caller's own child accounts, with when each was last used.",

@@ -1254,6 +1254,69 @@
       }
     }
   },
+  "geraete_codes": {
+    "eindeutig": [
+      [
+        "benutzer_code"
+      ]
+    ],
+    "indizes": [
+      "ix_geraete_codes_bestaetigt_von",
+      "ix_geraete_codes_user_id"
+    ],
+    "spalten": {
+      "api_key_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "app": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(40)"
+      },
+      "benutzer_code": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(8)"
+      },
+      "bestaetigt_von": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      },
+      "created_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "expires_at": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "DATETIME"
+      },
+      "geraet": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(80)"
+      },
+      "geraet_hash": {
+        "leer_erlaubt": false,
+        "schluessel": true,
+        "typ": "VARCHAR(64)"
+      },
+      "stand": {
+        "leer_erlaubt": false,
+        "schluessel": false,
+        "typ": "VARCHAR(16)"
+      },
+      "user_id": {
+        "leer_erlaubt": true,
+        "schluessel": false,
+        "typ": "INTEGER"
+      }
+    }
+  },
   "hausordnung": {
     "eindeutig": [],
     "indizes": [],

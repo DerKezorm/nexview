@@ -14,6 +14,7 @@ import { OidcLoginRow } from '../components/OidcLoginRow'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { Button, Card, ErrorBanner, Field } from '../components/ui'
 import i18n from '../i18n'
+import { geraeteSeite, merken } from '../lib/nachAnmeldung'
 import { oidcErrorKey } from '../vendor/nexoidc/oidc'
 
 /**
@@ -59,6 +60,12 @@ export function LoginPage() {
   // seinem Passwort herein.
   const [alsBetreiber, setAlsBetreiber] = useState(false)
   useEffect(fehlerAusAdresseRaeumen, [])
+  // Kam man über den QR-Code eines Fernsehers, geht es nach der Anmeldung
+  // dorthin zurück - auch über den Umweg eines Anmelde-Anbieters.
+  useEffect(() => {
+    const ziel = geraeteSeite()
+    if (ziel) merken(ziel)
+  }, [])
   const nurAnbieter = !passwordLogin && !alsBetreiber
   const [busy, setBusy] = useState(false)
   /** Adresse noch nicht bestätigt: dann statt Fehlermeldung den Ausweg zeigen. */
@@ -69,11 +76,14 @@ export function LoginPage() {
     setError(null)
     setPending(null)
     setBusy(true)
+    // Vor dem Anmelden lesen: Danach rendert die Anwendung schon neu.
+    const ziel = geraeteSeite() ?? '/'
     try {
       await login(username.trim(), password)
       // Nach jeder Anmeldung auf die Startseite - sonst landet man wieder
-      // dort, wo die vorherige Sitzung abgelaufen ist.
-      navigate('/', { replace: true })
+      // dort, wo die vorherige Sitzung abgelaufen ist. Die eine Ausnahme ist
+      // der Code eines Fernsehers (`lib/nachAnmeldung.ts`).
+      navigate(ziel, { replace: true })
     } catch (caught) {
       if (caught instanceof ApiError && caught.code === 'email_unverified') {
         setPending({
@@ -186,8 +196,9 @@ export function LoginPage() {
           <MediaServerLoginRow
             ways={mediaServerWays}
             onTokens={async (tokens) => {
+              const ziel = geraeteSeite() ?? '/'
               await loginWithTokens(tokens)
-              navigate('/', { replace: true })
+              navigate(ziel, { replace: true })
             }}
           />
 

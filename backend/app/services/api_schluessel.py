@@ -77,8 +77,9 @@ def anlegen(
     # eigenstaendige Nutzung gedacht ist.
     #
     # **Die eine Ausnahme ist das Geraet des Kindes** (``kindergeraet``), und
-    # sie entsteht nur in ``app_kopplung.abholen``: Das Elternteil erzeugt den
-    # QR-Code, das iPad des Kindes holt damit seinen Schluessel. Der kann nicht
+    # sie entsteht nur in ``app_kopplung.abholen`` und ``geraete_code.abfragen``:
+    # Das Elternteil erzeugt den QR-Code (oder bestaetigt den Code des
+    # Fernsehers), das Geraet des Kindes holt damit seinen Schluessel. Der kann nicht
     # mehr als die Anmeldung mit Name und Passwort, die das Kind ohnehin hat -
     # jede Erwachsenenadresse sperrt ``require_adult``, auch fuer Schluessel.
     if user.role == Role.child and not kindergeraet:

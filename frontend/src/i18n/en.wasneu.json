@@ -826,6 +826,22 @@
         "small": [
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.6.0": {
+        "lead": "Apps that speak Seerr can now request from nexview.",
+        "sections": [
+          {
+            "title": "Seerr-compatible API",
+            "where": "Settings, System, Seerr API",
+            "body": "When switched on, nexview answers like Seerr on a port of its own (5055 by default). As the Seerr API key you enter a nexview API token, and requests follow the rules of the account it belongs to: age limit, quota, approval. Tested and supported for Silo (Seerr plugin) and Litefin (Jellyfin plugin)."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The API is off by default. In a container the port has to be published as well, for example 5055:5055.",
+          "The API never creates accounts and never matches anyone by email address or name, only through the link with Jellyfin.",
+          "The database does not change."
+        ]
       }
     }
   }

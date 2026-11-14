@@ -826,6 +826,22 @@
         "small": [
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.6.0": {
+        "lead": "Anwendungen, die Seerr sprechen, können jetzt bei nexview anfragen.",
+        "sections": [
+          {
+            "title": "Seerr-kompatible API",
+            "where": "Einstellungen, System, Seerr API",
+            "body": "Eingeschaltet antwortet nexview auf einem eigenen Port (ab Werk 5055) wie Seerr. Als Seerr-Schlüssel trägt man ein API-Token aus nexview ein, und angefragt wird mit den Regeln des Kontos, dem es gehört: Altersgrenze, Kontingent, Freigabe. Geprüft und zugesagt für Silo (Seerr-Plugin) und Litefin (Jellyfin-Plugin)."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Ab Werk ist die Schnittstelle aus. Im Container muss der Port zusätzlich veröffentlicht sein, etwa 5055:5055.",
+          "Konten legt die Schnittstelle nie an, und sie ordnet niemanden über Mailadresse oder Namen zu, nur über die Verknüpfung mit Jellyfin.",
+          "An der Datenbank ändert sich nichts."
+        ]
       }
     }
   }

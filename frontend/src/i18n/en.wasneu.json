@@ -842,6 +842,22 @@
           "The API never creates accounts and never matches anyone by email address or name, only through the link with Jellyfin.",
           "The database does not change."
         ]
+      },
+      "1.7.0": {
+        "lead": "TVs now connect with a code instead of a typed-in key.",
+        "sections": [
+          {
+            "title": "Connect a TV",
+            "where": "Profile, iPhone app, Connect a TV",
+            "body": "A TV app shows a short code and a QR code. On your phone or computer you open the page for it, see the device and the app, and confirm. The TV gets a key of its own with your permissions; as a parent you can pick one of your children instead, and their wishes then go to you. The key appears under API tokens or under the child's devices and can be revoked there."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Only confirm a code that is on your own screen right now: whoever confirms gives the device their access.",
+          "A code is good for ten minutes and once. If you have to sign in first, you land back at the code afterwards.",
+          "The database gains one table for the codes; nothing else changes."
+        ]
       }
     }
   }

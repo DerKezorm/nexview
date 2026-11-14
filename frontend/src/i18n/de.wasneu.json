@@ -842,6 +842,22 @@
           "Konten legt die Schnittstelle nie an, und sie ordnet niemanden über Mailadresse oder Namen zu, nur über die Verknüpfung mit Jellyfin.",
           "An der Datenbank ändert sich nichts."
         ]
+      },
+      "1.7.0": {
+        "lead": "Fernseher verbinden sich jetzt mit einem Code statt mit einem abgetippten Schlüssel.",
+        "sections": [
+          {
+            "title": "Fernseher verbinden",
+            "where": "Profil, iPhone-App, Fernseher verbinden",
+            "body": "Eine Fernseher-App zeigt einen kurzen Code und einen QR-Code. Am Telefon oder Rechner öffnest du die Seite dazu, siehst Gerät und App und bestätigst. Der Fernseher bekommt einen eigenen Schlüssel mit deinen Rechten; als Elternteil kannst du stattdessen eines deiner Kinder wählen, dann gehen dessen Wünsche an dich. Der Schlüssel steht danach unter API-Token oder bei den Geräten des Kindes und lässt sich dort widerrufen."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Bestätige nur einen Code, der gerade auf deinem eigenen Bildschirm steht: Wer bestätigt, gibt dem Gerät seinen Zugang.",
+          "Ein Code gilt zehn Minuten und nur einmal. Wer sich erst anmelden muss, landet danach wieder beim Code.",
+          "Neu in der Datenbank ist eine Tabelle für die Codes, sonst ändert sich nichts."
+        ]
       }
     }
   }

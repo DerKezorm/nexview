@@ -1470,6 +1470,13 @@ export type AppSettings = {
   /** Adresse aus Sicht von Radarr/Sonarr – leer heißt: die öffentliche gilt. */
   webhook_basis_url: string;
   update_check: boolean;
+  /** Seerr-kompatible Schnittstelle auf eigenem Port (Issue #17), ab Werk aus. */
+  seerr_api_enabled: boolean;
+  seerr_api_port: number;
+  /** Lauscht der Port gerade? Nur gelesen, kommt vom Server. */
+  seerr_api_listening: boolean;
+  /** `port_unavailable`, wenn der Port belegt ist oder nicht geöffnet werden darf. */
+  seerr_api_error: string | null;
   /** Anmeldung mit Passwort für alle (aus nur mit aktivem Anmelde-Anbieter). */
   password_login: boolean;
   /** Regelmäßige Sicherung: 'off' | 'daily' | 'weekly' | 'monthly'. */

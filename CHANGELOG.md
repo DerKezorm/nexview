@@ -12,6 +12,17 @@ tag exists for it.
 
 ---
 
+## 1.6.0 – not released yet
+
+### Added
+
+- **Seerr-compatible API.** Apps that send requests to Seerr can send them to Nexview
+  instead: switched on under Settings → System → Seerr API, Nexview answers like Seerr on a
+  port of its own (5055 by default). The Seerr API key is a Nexview API token, and requests
+  follow the rules of the account it belongs to. Supported and tested for Silo's Seerr
+  plugin and the Litefin plugin for Jellyfin
+  ([#17](https://github.com/DerKezorm/nexview/issues/17)).
+
 ## 1.5.1 – 11.11.2026
 
 ### Fixed

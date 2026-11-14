@@ -1575,7 +1575,8 @@
       "checkFailed": "Die Verbindung hat nicht geklappt.",
       "previewFailed": "Die Vorschau konnte nicht erstellt werden.",
       "notComingTitle": "Was Nexview nicht aufnehmen kann"
-    }
+    },
+    "tabSeerrApi": "Seerr API"
   },
   "qualityProfiles": {
     "title": "Qualitätsprofile",
@@ -4281,5 +4282,19 @@
   "beschaffung": {
     "openThere": "In der Beschaffung öffnen",
     "openThere_nex": "In nexcrate öffnen"
+  },
+  "seerrApi": {
+    "title": "Seerr-kompatible API",
+    "intro": "Viele Anwendungen können Anfragen an Seerr schicken. Eingeschaltet antwortet Nexview auf einem **eigenen Port** wie Seerr, und diese Anwendungen fragen bei Nexview an. Es gelten dieselben Regeln wie in der Oberfläche: Altersgrenze, Kontingent, Freigabe.",
+    "enable": "Seerr-kompatible API einschalten",
+    "enableHint": "Ab Werk aus. Ein offener Port, den niemand braucht, ist eine Tür, von der niemand weiß.",
+    "port": "Port",
+    "portHint": "Seerr nutzt **5055**, und das tragen die meisten Anwendungen ab Werk ein. Im Container muss der Port auch veröffentlicht sein, etwa `-p 5055:5055` oder unter `ports:` in Compose.",
+    "portInvalid": "Ein Port zwischen 1024 und 65535.",
+    "listening": "Lauscht auf Port {{port}}.",
+    "starting": "Wird gestartet …",
+    "portUnavailable": "Port {{port}} lässt sich nicht öffnen – belegt oder nicht erlaubt. Nexview versucht es jede Minute erneut.",
+    "keyHint": "Als „Seerr API key“ trägt man ein **API-Token aus Nexview** ein (Profil → Konto → Sicherheit). Angefragt wird mit dem Konto, dem das Token gehört. Für Silo legt man am besten ein eigenes Konto an. Nur das Token eines Administrators darf im Namen anderer fragen (`X-Api-User`); so ordnet Litefin die Anfragen der richtigen Person zu, über die Verknüpfung mit Jellyfin. **Beim Stöbern nennt Litefin keine Person:** Entdecken, Suche und Titelseiten laufen für alle am Fernseher mit dem Konto des Tokens. Nutzen Kinder den Fernseher, braucht dieses Konto eine Altersgrenze.",
+    "clients": "Zugesagt für **Silo** (Seerr-Plugin) und **Litefin** (Jellyfin-Plugin). Andere Seerr-Anwendungen können funktionieren, sind aber nicht geprüft. Anmelden mit Passwort oder Quick Connect gibt es hier nicht, und Konten legt die Schnittstelle nie an."
   }
 }

@@ -1575,7 +1575,8 @@
       "checkFailed": "The connection did not work.",
       "previewFailed": "The preview could not be built.",
       "notComingTitle": "What Nexview cannot take in"
-    }
+    },
+    "tabSeerrApi": "Seerr API"
   },
   "qualityProfiles": {
     "title": "Quality profiles",
@@ -4281,5 +4282,19 @@
   "beschaffung": {
     "openThere": "Open in procurement",
     "openThere_nex": "Open in nexcrate"
+  },
+  "seerrApi": {
+    "title": "Seerr-compatible API",
+    "intro": "Many apps can send requests to Seerr. When this is on, Nexview answers like Seerr on a **port of its own**, and those apps request from Nexview. The same rules apply as in the interface: age limit, quota, approval.",
+    "enable": "Turn on the Seerr-compatible API",
+    "enableHint": "Off by default. An open port nobody needs is a door nobody knows about.",
+    "port": "Port",
+    "portHint": "Seerr uses **5055**, and most apps fill that in by default. In a container the port must be published too, for example `-p 5055:5055` or under `ports:` in Compose.",
+    "portInvalid": "A port between 1024 and 65535.",
+    "listening": "Listening on port {{port}}.",
+    "starting": "Starting …",
+    "portUnavailable": "Port {{port}} cannot be opened – it is in use or not allowed. Nexview tries again every minute.",
+    "keyHint": "As the “Seerr API key”, enter a **Nexview API token** (Profile → Account → Security). Requests are made with the account that owns the token. For Silo, a dedicated account works best. Only an administrator’s token may act for others (`X-Api-User`); that is how Litefin files requests under the right person, through the link with Jellyfin. **While browsing, Litefin names nobody:** discover, search and title pages run as the token’s account for everyone at that TV. If children use the TV, give that account an age limit.",
+    "clients": "Supported for **Silo** (Seerr plugin) and **Litefin** (Jellyfin plugin). Other Seerr apps may work but are not tested. Signing in with a password or Quick Connect is not available here, and the API never creates accounts."
   }
 }

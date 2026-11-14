@@ -885,6 +885,32 @@ def _watch_providers(raw: dict[str, Any], region: str) -> WatchProviders | None:
     )
 
 
+async def roh_ausfuehrlich(
+    db: Session, settings: AppSettings, media_type: str, tmdb_id: int
+) -> dict[str, Any]:
+    """Die ausfuehrliche TMDB-Antwort zu einem Titel, nach der Altersfrage.
+
+    Eigene Funktion, weil zwei Leser dieselbe Antwort brauchen: die
+    Detailseite (``full_detail``) und die Seerr-Schicht, die TMDBs Form
+    weiterreicht statt Nexviews. Beide teilen sich so den Zwischenspeicher
+    und - wichtiger - die Sperre: Wer hier vorbeikommt, ist durch
+    ``_pruefe_alter`` gegangen.
+    """
+    region = settings.default_region
+
+    async def fetch() -> dict[str, Any]:
+        return await _client(settings).detail(media_type, tmdb_id, ausfuehrlich=True)
+
+    raw = await cache.cached(
+        db,
+        f"full:{DETAIL_SHAPE}:{media_type}:{tmdb_id}:{region}:{settings.default_language}",
+        cache.DETAIL_TTL,
+        fetch,
+    )
+    _pruefe_alter(raw, media_type, settings)
+    return raw
+
+
 async def full_detail(
     db: Session,
     settings: AppSettings,
@@ -910,18 +936,7 @@ async def full_detail(
         return MediaDetail(**beispiel.model_dump())
 
     region = settings.default_region
-
-    async def fetch() -> dict[str, Any]:
-        return await _client(settings).detail(media_type, tmdb_id, ausfuehrlich=True)
-
-    raw = await cache.cached(
-        db,
-        f"full:{DETAIL_SHAPE}:{media_type}:{tmdb_id}:{region}:{settings.default_language}",
-        cache.DETAIL_TTL,
-        fetch,
-    )
-
-    _pruefe_alter(raw, media_type, settings)
+    raw = await roh_ausfuehrlich(db, settings, media_type, tmdb_id)
 
     genres = await _genre_map(db, settings, media_type)
     basis = _enrich(_base_item(raw, media_type, genres), raw, media_type, region, mit_staffeln=True)

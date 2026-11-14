@@ -779,6 +779,53 @@ but it can change with any version — field names included. Nothing there is pr
 that on a dashboard shows **who asked for what**. In a household that is usually the point;
 on a screen other people see, it may not be.
 
+### Seerr-compatible API
+
+Many apps already know how to send requests to Seerr. Nexview can answer them the way
+Seerr does, on a **port of its own**, so they request from Nexview instead. It is off by
+default; switch it on under **Settings → System → Seerr API**. The port is 5055, Seerr's
+own, unless you change it.
+
+In a container the port has to be published as well:
+
+```yaml
+    ports:
+      - "8000:8000"
+      - "5055:5055"
+```
+
+**The Seerr API key is a Nexview API token** (see above). Requests are made with the account
+the token belongs to, with that account's role, quota, approval and age limit. For an app
+that has its own approval, such as Silo, a dedicated account works best. Only an
+administrator's token may act for someone else (Seerr's `X-Api-User`).
+
+What is promised here is **per app**, not "anything that speaks Seerr". Seerr has well over
+a hundred endpoints and every app uses a different part of them. Nexview answers what these
+apps call, read from their source and covered by tests:
+
+| App | What it uses |
+| --- | --- |
+| [Silo](https://github.com/Silo-Server) with its [Seerr plugin](https://github.com/Silo-Community/silo-plugins-requests-seerr) | sending requests and following them until they are done |
+| [Litefin](https://github.com/MoazSalem/litefin-plugin) (Jellyfin plugin) | discover, search, details, requests and the watchlist on the TV |
+
+Other Seerr apps may work, but nobody has checked. Three things are deliberately different
+from Seerr:
+
+- **No sign-in with a password or Quick Connect.** You enter a token by hand.
+- **No accounts are created and none are matched by email address.** Silo's plugin can
+  look people up by email and create the missing ones; Nexview answers that list without
+  email addresses and refuses to create accounts, so Silo falls back to the token's owner.
+  Litefin matches people by their Jellyfin user, which Nexview knows from the account link.
+- **Seerr's watchlist is Nexview's "Like" list**, and the ratings from Rotten Tomatoes and
+  IMDb stay empty.
+
+⚠️ **Litefin and age limits.** Litefin names the person only when it sends a request or
+touches the watchlist. Browsing — discover, search, title pages, "recently added" — always
+runs as the token's own account, for everyone at that TV. So that account decides what is
+shown while browsing: if children use the TV, give it an age limit (an administrator
+account can have one too). Requests made through Litefin still follow the rules and limits
+of the person who made them.
+
 ### A tile for Homepage or Homarr
 
 `GET /api/v1/dashboard` answers with everything a tile needs in one call: how many findings

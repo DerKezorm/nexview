@@ -314,6 +314,16 @@ class TmdbClient:
 
         return await self._get(f"/{media_type}/{tmdb_id}", params)
 
+    async def roh(self, pfad: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Eine beliebige Leseabfrage, so wie TMDB antwortet.
+
+        Fuer die Seerr-Schicht (``app/seerr_api``): Seerr reicht TMDB fast
+        unveraendert weiter, und eine eigene Methode je Adresse (Trends,
+        Personen, Sammlungen, Entdecken mit Seerrs Filtern) waere nur
+        dieselbe Zeile dreizehnmal.
+        """
+        return await self._get(pfad, params)
+
     async def overviews(self, media_type: str, tmdb_ids: list[int]) -> dict[int, str]:
         """Nur die Beschreibung - in der Sprache dieses Clients.
 

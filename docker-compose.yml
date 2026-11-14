@@ -20,6 +20,9 @@ services:
       # einfach die linke Zahl aendern - und die oeffentliche Adresse in den
       # Einstellungen mit anpassen.
       - "5173:8000"
+      # Nur fuer die Seerr-kompatible API (Einstellungen -> System -> Seerr API),
+      # ab Werk aus. Einschalten und die Zeile ohne # nutzen.
+      # - "5055:5055"
 
     volumes:
       # Relativ zum Projektordner. Auf der Synology gern ein fester Pfad,

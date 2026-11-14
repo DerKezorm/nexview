@@ -11,6 +11,7 @@ import { AdminLogsSettings } from './settings/AdminLogsSettings'
 import { AdminSicherungen } from './settings/AdminSicherungen'
 import { AdminMailSettings } from './settings/AdminMailSettings'
 import { AdminOidcSettings } from './settings/AdminOidcSettings'
+import { AdminSeerrApiSettings } from './settings/AdminSeerrApiSettings'
 import { AdminServicesSettings } from './settings/AdminServicesSettings'
 import { AdminStorageSettings } from './settings/AdminStorageSettings'
 import { AdminBlocklistSettings } from './settings/AdminBlocklistSettings'
@@ -36,6 +37,7 @@ type Tab =
   | 'logs'
   | 'sicherungen'
   | 'token'
+  | 'seerrapi'
 
 /**
  * Was unter „System" liegt.
@@ -62,6 +64,9 @@ const SYSTEM: Reiter<Tab>[] = [
   // sie noch benutzt werden. Deshalb steht es neben dem Protokoll und nicht
   // bei den Benutzern - dort ginge es zwischen Rollen und Kontingenten unter.
   { value: 'token', label: 'settings.tabTokens', symbol: 'schluessel' },
+  // Ein zweiter Port für Anwendungen, die Seerr sprechen (Issue #17). Neben
+  // den Token, weil man dort das Token für sie anlegt und hier den Port.
+  { value: 'seerrapi', label: 'settings.tabSeerrApi', symbol: 'dienste' },
 ]
 
 const IM_SYSTEM = new Set<Tab>(SYSTEM.map((e) => e.value))
@@ -94,6 +99,7 @@ const REITER_AUS_ADRESSE: Record<string, Tab> = {
   protokoll: 'logs',
   sicherungen: 'sicherungen',
   token: 'token',
+  'seerr-api': 'seerrapi',
 }
 
 /** Der Punkt, auf dem „System" aufgeht - der erste seiner Reihe. */
@@ -257,6 +263,7 @@ export function SettingsPage() {
       {tab === 'logs' && <AdminLogsSettings />}
       {tab === 'sicherungen' && <AdminSicherungen />}
       {tab === 'token' && <AdminApiToken />}
+      {tab === 'seerrapi' && <AdminSeerrApiSettings />}
     </div>
   )
 }

@@ -70,6 +70,8 @@ VOLUME ["/data"]
 # Nur eine Angabe fuer Werkzeuge, die sie auslesen - der tatsaechliche Port
 # kommt aus NEXVIEW_PORT und wird im Startskript gesetzt.
 EXPOSE 8000
+# Die Seerr-kompatible API (ab Werk aus, Port in den Einstellungen).
+EXPOSE 5055
 
 # Der Healthcheck fragt genau das, was auch die Oberflaeche braucht.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

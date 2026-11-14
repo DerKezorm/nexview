@@ -20,6 +20,7 @@ from .. import meldungen
 from ..deps import AdminUser, AdultUser, CurrentUser, DbSession
 from ..models import Fassung, Hausordnung, MediaType, User, utcnow
 from ..schemas import MIN_PASSWORD_LENGTH
+from ..seerr_api import lauscher as seerr_lauscher
 from ..services import (
     beschaffung,
     cache,
@@ -166,6 +167,10 @@ class SettingsUpdate(BaseModel):
     mediaserver_default_role: str | None = None
     # --- Merkliste ----------------------------------------------------------
     watchlist_enabled: bool | None = None
+    # --- Seerr-kompatible Schnittstelle (Issue #17) --------------------------
+    seerr_api_enabled: bool | None = None
+    # Unter 1024 braucht es Rechte, die der Container-Nutzer nicht hat.
+    seerr_api_port: int | None = Field(default=None, ge=1024, le=65535)
     # --- Folgen-Pakete ------------------------------------------------------
     episode_requests_enabled: bool | None = None
     # --- Kontingente --------------------------------------------------------
@@ -818,6 +823,9 @@ def update_settings(
     # geaendert haben.
     cache.clear_all(db)
     beschaffung.bestand_verwerfen()
+    # Der Seerr-Port folgt sofort statt beim naechsten Takt.
+    if {"seerr_api_enabled", "seerr_api_port"} & set(geaendert):
+        seerr_lauscher.aufwecken()
     return public_settings(db)
 
 

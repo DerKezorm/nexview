@@ -148,6 +148,7 @@ from .routers import (
 from .routers import (
     watchlist as watchlist_router,
 )
+from .seerr_api import lauscher as seerr_lauscher
 from .services import (
     beschaffung,
     channel_outbox,
@@ -230,6 +231,10 @@ async def lifespan(app: FastAPI):
         # Abgelaufene und verbrauchte Links einmal am Tag aufraeumen. Haengt am
         # Poller-Schalter, weil es Zeilen loescht, die ein Test gerade anlegt.
         tasks.append(asyncio.create_task(tokens.run_forever(stop)))
+        # Der Seerr-kompatible Port (Issue #17), ab Werk aus. Am
+        # Poller-Schalter, weil er einen Port oeffnet - ein Test, der das
+        # taete, stiesse beim naechsten Lauf auf seinen eigenen Rest.
+        tasks.append(asyncio.create_task(seerr_lauscher.run_forever(stop)))
 
         # Was die Beschaffung beim Start aufnimmt (heute: abgebrochene
         # Umbenennungslaeufe, siehe dort).

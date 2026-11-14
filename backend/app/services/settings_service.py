@@ -216,6 +216,13 @@ DEFAULTS: dict[str, str] = {
     # Nexview sehen und daraus anfragen koennen. Angefragt wird ueber den ganz
     # normalen Weg - deshalb braucht es hier weder Rechte noch ein Ziel.
     "watchlist_enabled": "off",
+    # --- Seerr-kompatible Schnittstelle (Issue #17) --------------------------
+    # Ein zweiter Port, auf dem Nexview wie Seerr antwortet (``app/seerr_api``).
+    # Ab Werk aus: Ein offener Port, den niemand bestellt hat, ist eine Tuer,
+    # von der niemand weiss. 5055 ist Seerrs Port und das, was Clients
+    # ab Werk eintragen.
+    "seerr_api_enabled": "off",
+    "seerr_api_port": "5055",
     # --- Folgen-Pakete ------------------------------------------------------
     # Duerfen Benutzer einzelne Folgen statt ganzer Staffeln anfragen? Ein
     # Schalter fuer Haeuser, die es schlicht halten wollen. Standard **an**:
@@ -393,6 +400,9 @@ class AppSettings:
     mediaserver_auto_import: bool
     mediaserver_default_role: str
     watchlist_enabled: bool
+    # Seerr-kompatible Schnittstelle auf eigenem Port (``app/seerr_api``).
+    seerr_api_enabled: bool
+    seerr_api_port: int
     # Duerfen Benutzer Folgen-Pakete anfragen (einzelne Folgen einer Staffel)?
     episode_requests_enabled: bool
     # --- Kontingente: die drei Standardwerte und ihr Zeitraum ---------------
@@ -743,6 +753,11 @@ def _profil_modus(
     return rueckfall if rueckfall is not None else "user"
 
 
+def _seerr_port(wert: str | None) -> int:
+    zahl = _zahl(wert)
+    return zahl if zahl is not None and 1024 <= zahl <= 65535 else 5055
+
+
 def _zahl(wert: str | None) -> int | None:
     """Ganze Zahl aus einer Einstellung lesen; leer heisst "nicht gesetzt".
 
@@ -1002,6 +1017,10 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
             else "user"
         ),
         watchlist_enabled=_flag(values["watchlist_enabled"], standard=False),
+        seerr_api_enabled=_flag(values["seerr_api_enabled"], standard=False),
+        # Ein Port unter 1024 braucht Rechte, die der Container-Nutzer nicht
+        # hat; ein unbrauchbarer Wert faellt auf Seerrs Port zurueck.
+        seerr_api_port=_seerr_port(values["seerr_api_port"]),
         episode_requests_enabled=_flag(values["episode_requests_enabled"], standard=True),
         quota_default_movies=profil("quota_default_movies"),
         quota_default_series=profil("quota_default_series"),
@@ -1069,6 +1088,18 @@ def for_user(settings: AppSettings, user: User) -> AppSettings:
         rating_region=pruef_region,
         hide_unrated=user.hide_unrated,
     )
+
+
+def _seerr_api_zustand() -> dict[str, object]:
+    """Ob der Seerr-Port gerade lauscht - fuer die Einstellungsseite.
+
+    Spaet importiert: ``seerr_api`` zieht Router nach, die ihrerseits diese
+    Datei brauchen.
+    """
+    from ..seerr_api import lauscher
+
+    zustand = lauscher.zustand()
+    return {"seerr_api_listening": zustand.laeuft, "seerr_api_error": zustand.fehler}
 
 
 def public_settings(db: Session) -> dict[str, object]:
@@ -1149,6 +1180,9 @@ def public_settings(db: Session) -> dict[str, object]:
         "public_url": settings.public_url,
         "webhook_basis_url": settings.webhook_basis_url,
         "update_check": settings.update_check,
+        "seerr_api_enabled": settings.seerr_api_enabled,
+        "seerr_api_port": settings.seerr_api_port,
+        **_seerr_api_zustand(),
         "password_login": settings.password_login,
         "backup_schedule": settings.backup_schedule,
         "backup_keep": settings.backup_keep,

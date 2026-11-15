@@ -28,9 +28,10 @@ naechsten Umbau still auseinander.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Path, Query
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -38,7 +39,7 @@ from sqlalchemy import select
 from .. import __version__
 from ..deps import CurrentUser, DbSession
 from ..models import User
-from ..schemas_media import MediaPage
+from ..schemas_media import MediaPage, PersonDetail
 from ..services import media
 from ..services.settings_service import for_user, load_settings
 from ..services.tmdb import TmdbError
@@ -49,6 +50,7 @@ from . import (
     calendar,
     children,
     dashboard,
+    details,
     discover,
     downloads,
     favorites,
@@ -64,7 +66,7 @@ from . import (
     users,
     watchlist,
 )
-from .settings import FassungOeffentlich, _fassungen_oeffentlich, _hausordnung_stand
+from .settings import TMDB_SPRACHE, FassungOeffentlich, _fassungen_oeffentlich, _hausordnung_stand
 
 router = APIRouter(prefix="/api/app/1", tags=["app"])
 kids_router = APIRouter(prefix="/api/app/1/kids", tags=["app"])
@@ -292,6 +294,39 @@ async def entdecken(
     fehlt = [item for item in items if item.status not in IN_DER_MEDIATHEK]
     return roh.model_copy(update={"items": fehlt, "arr_warning": warnung})
 
+
+# --- Personen der Fernseh-App -----------------------------------------------
+
+_zweitschrift(router, "/people", details.router, details.people, "GET", "Find people by name")
+
+
+@router.get(
+    "/person/{person_id}",
+    response_model=PersonDetail,
+    summary="One person with their films and series",
+    description=(
+        "A person by TMDB person id: name, picture, biography and the best-known films and series, "
+        "each with its `status` in this nexview, as on the person page of the web interface. "
+        "`language` (for example `de` or `en-US`) picks the language of the biography and the titles; "
+        "without it the account's language applies. Where TMDB has no biography in that language, the "
+        "English one is returned. Titles above the account's age limit are left out. "
+        "See `docs/app-person.md`."
+    ),
+)
+async def person(
+    person_id: Annotated[int, Path(ge=1)],
+    user: CurrentUser,
+    db: DbSession,
+    language: Annotated[str | None, Query(pattern=TMDB_SPRACHE.pattern)] = None,
+) -> PersonDetail:
+    # ⚠️ Erst ``for_user`` (Altersgrenze, Region), dann nur die Sprache
+    # ersetzen. Andersherum ginge die Grenze verloren.
+    settings = for_user(load_settings(db), user)
+    if language:
+        settings = replace(settings, default_language=language)
+    return await details.person_mit_status(db, settings, user, person_id, biografie_ersatz=True)
+
+
 # --- Freigeben (Entscheider und Administratoren) ----------------------------
 
 _zweitschrift(router, "/approvals", admin_requests.router, admin_requests.list_all, "GET", "All requests")
@@ -463,6 +498,9 @@ ZUGESAGT = (
     "/api/app/1/discover/{media_type}",
     # Entdecken der Fernseh-App (docs/app-discover.md)
     "/api/app/1/discover/genres/{media_type}",
+    # Personen der Fernseh-App (docs/app-person.md)
+    "/api/app/1/people",
+    "/api/app/1/person/{person_id}",
     "/api/app/1/media/{media_type}/{tmdb_id}",
     "/api/app/1/home/recent",
     "/api/app/1/home/trending",

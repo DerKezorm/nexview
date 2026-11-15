@@ -642,10 +642,21 @@ async def person(
     db: DbSession,
 ) -> PersonDetail:
     """Eine Person mit Foto, Biografie und ihren bekanntesten Titeln."""
-    settings = for_user(load_settings(db), user)
+    return await person_mit_status(db, for_user(load_settings(db), user), user, person_id)
 
+
+async def person_mit_status(
+    db, settings, user, person_id: int, *, biografie_ersatz: bool = False
+) -> PersonDetail:
+    """Die Person samt Zustand je Titel - fuer die Webseite und die Fernseh-App.
+
+    ⚠️ ``settings`` muss aus ``for_user`` stammen: Es traegt die Altersgrenze,
+    mit der ``media.person_detail`` die Filmografie siebt.
+    """
     try:
-        detail = await media.person_detail(db, settings, person_id)
+        detail = await media.person_detail(
+            db, settings, person_id, biografie_ersatz=biografie_ersatz
+        )
     except TmdbError as error:
         raise _fehler(error) from error
 

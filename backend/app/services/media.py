@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -1337,23 +1338,59 @@ def _werk_rolle(eintrag: dict[str, Any], sprache: str) -> str:
     return eintrag.get("character") or ""
 
 
-async def person_detail(db: Session, settings: AppSettings, person_id: int) -> PersonDetail:
+#: Die Sprache, in der TMDB fast jede Biografie hat - der Rueckfall, wenn es in
+#: der gewuenschten keine gibt.
+BIOGRAFIE_ERSATZSPRACHE = "en-US"
+
+
+async def _person_roh(db: Session, settings: AppSettings, person_id: int) -> dict[str, Any]:
+    async def fetch() -> dict[str, Any]:
+        return await _client(settings).person(person_id)
+
+    return await cache.cached(
+        db, f"person:{person_id}:{settings.default_language}", cache.DETAIL_TTL, fetch
+    )
+
+
+async def _biografie_ersatz(db: Session, settings: AppSettings, person_id: int) -> str:
+    """Die englische Biografie, wenn es in der gewuenschten Sprache keine gibt.
+
+    TMDB faellt bei Personen nicht selbst auf Englisch zurueck: Ohne deutsche
+    Uebersetzung kommt ``biography`` leer. Geholt wird dieselbe Abfrage wie
+    bei einem englischsprachigen Konto, unter demselben Schluessel - wer die
+    Person schon auf Englisch angesehen hat, kostet hier keine Abfrage.
+
+    Ein Fehler dabei kostet nur den Text, nicht die Seite.
+    """
+    if settings.default_language.lower().startswith("en"):
+        return ""
+    englisch = replace(settings, default_language=BIOGRAFIE_ERSATZSPRACHE)
+    try:
+        roh = await _person_roh(db, englisch, person_id)
+    except TmdbError:
+        logger.debug("Person %s: no English biography to fall back on", person_id, exc_info=True)
+        return ""
+    return roh.get("biography") or ""
+
+
+async def person_detail(
+    db: Session, settings: AppSettings, person_id: int, *, biografie_ersatz: bool = False
+) -> PersonDetail:
     """Eine Person samt Filmografie, eingeteilt in Filme, Serien und Auftritte.
 
     Sortiert nach Bekanntheit: chronologisch stuenden oben lauter
     Kleinstauftritte, die niemand zuordnen kann. Talkshow- und Interview-
     Auftritte ("Self") sind eigens ausgewiesen und begrenzt, damit sie die
     echten Rollen nicht ueberdecken - die Oberflaeche filtert danach.
+
+    ``biografie_ersatz`` holt die englische Biografie, wenn es in der Sprache
+    keine gibt (die Fernseh-App). Die Webseite laesst es aus und zeigt dann
+    keine.
     """
     if settings.use_demo_data:
         raise TmdbError("Im Demo-Modus gibt es keine Personendaten.", 404)
 
-    async def fetch() -> dict[str, Any]:
-        return await _client(settings).person(person_id)
-
-    raw = await cache.cached(
-        db, f"person:{person_id}:{settings.default_language}", cache.DETAIL_TTL, fetch
-    )
+    raw = await _person_roh(db, settings, person_id)
 
     cast = (raw.get("combined_credits") or {}).get("cast") or []
     crew = (raw.get("combined_credits") or {}).get("crew") or []
@@ -1446,10 +1483,14 @@ async def person_detail(db: Session, settings: AppSettings, person_id: int) -> P
             )
         )
 
+    biografie = raw.get("biography") or ""
+    if not biografie.strip() and biografie_ersatz:
+        biografie = await _biografie_ersatz(db, settings, person_id)
+
     return PersonDetail(
         person_id=raw.get("id", person_id),
         name=raw.get("name") or "",
-        biography=raw.get("biography") or "",
+        biography=biografie,
         photo_url=image_url(raw.get("profile_path"), PROFILE_SIZE),
         birthday=raw.get("birthday") or None,
         deathday=raw.get("deathday") or None,

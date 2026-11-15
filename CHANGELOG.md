@@ -12,6 +12,17 @@ tag exists for it.
 
 ---
 
+## 1.9.0
+
+### Added
+
+- **People for TV apps.** A TV app can show an actor's films and series with what
+  nexview knows about each one (in the library, requested, missing), so it can offer
+  the missing ones for a request right on the actor's page. The biography comes in the
+  app's language, in English where TMDB has none in that language. Titles above an
+  account's age limit never appear. For app developers: `/api/app/1/person/{id}` and
+  `/api/app/1/people`, described in `docs/app-person.md`.
+
 ## 1.8.0 – 15.11.2026
 
 ### Added

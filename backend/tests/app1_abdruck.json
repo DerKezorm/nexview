@@ -1047,6 +1047,43 @@
   "GET /api/app/1/notifications/unread/count": [
     "{*}"
   ],
+  "GET /api/app/1/people": [
+    "has_more",
+    "items[].department",
+    "items[].known_for",
+    "items[].name",
+    "items[].person_id",
+    "items[].photo_url"
+  ],
+  "GET /api/app/1/person/{person_id}": [
+    "biography",
+    "birthday",
+    "credits[].character",
+    "credits[].fassungen[].haupt",
+    "credits[].fassungen[].kennung",
+    "credits[].fassungen[].klasse",
+    "credits[].fassungen[].name",
+    "credits[].fassungen[].quelle",
+    "credits[].fassungen[].status",
+    "credits[].kind",
+    "credits[].media_type",
+    "credits[].poster_url",
+    "credits[].release_date",
+    "credits[].status",
+    "credits[].status_uhd",
+    "credits[].title",
+    "credits[].tmdb_id",
+    "credits[].vote_average",
+    "credits[].watched",
+    "credits[].watched_not_on[]",
+    "credits[].watched_on[]",
+    "deathday",
+    "known_for_department",
+    "name",
+    "person_id",
+    "photo_url",
+    "place_of_birth"
+  ],
   "GET /api/app/1/ratings/mine": [
     "[].comment",
     "[].id",

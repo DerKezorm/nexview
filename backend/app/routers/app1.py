@@ -28,9 +28,9 @@ naechsten Umbau still auseinander.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 from fastapi.routing import APIRoute
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -38,7 +38,10 @@ from sqlalchemy import select
 from .. import __version__
 from ..deps import CurrentUser, DbSession
 from ..models import User
-from ..services.settings_service import load_settings
+from ..schemas_media import MediaPage
+from ..services import media
+from ..services.settings_service import for_user, load_settings
+from ..services.tmdb import TmdbError
 from . import (
     admin_requests,
     beschaffung,
@@ -175,9 +178,16 @@ def selbstauskunft(user: CurrentUser, db: DbSession) -> AppSelbstauskunft:
 _zweitschrift(router, "/requests/quota", requests.router, requests.read_quota, "GET", "Your quota")
 _zweitschrift(router, "/storage/me", storage.router, storage.eigener_speicher, "GET", "Your storage")
 _zweitschrift(router, "/search/{media_type}", discover.router, discover.search, "GET", "Search titles")
-_zweitschrift(router, "/discover/{media_type}", discover.router, discover.discover, "GET", "Discover titles")
 _zweitschrift(
     router, "/media/{media_type}/{tmdb_id}", discover.router, discover.media_detail, "GET", "One title"
+)
+_zweitschrift(
+    router,
+    "/discover/genres/{media_type}",
+    discover.router,
+    discover.genres,
+    "GET",
+    "Genres to filter by, in the account's language",
 )
 _zweitschrift(router, "/home/recent", home.router, home.recent_downloads, "GET", "Recently arrived")
 _zweitschrift(router, "/home/trending", home.router, home.trending, "GET", "Trending and missing")
@@ -200,6 +210,87 @@ _zweitschrift(
     "POST",
     "Accept or refuse the house rules",
 )
+
+
+# --- Entdecken der Fernseh-App ----------------------------------------------
+
+#: Was "liegt schon in der Mediathek" heisst. ⚠️ **``partial`` gehoert nicht
+#: dazu**: Eine Serie, von der Staffeln fehlen, ist genau das, was man hier
+#: noch findet und anfragt. Angefragtes bleibt ebenfalls stehen, mit seinem
+#: Zustand - die App zeigt dann "Angefragt" statt "Wuenschen".
+IN_DER_MEDIATHEK = frozenset({"downloaded", "in_library"})
+
+
+@router.get(
+    "/discover/{media_type}",
+    response_model=MediaPage,
+    summary="Discover titles",
+    description=(
+        "With `list` (`streaming`, `new`, `popular`): titles that are not in the library yet, "
+        "for the TV app's Discover screen; see `docs/app-discover.md`. Without `list`: the same "
+        "as `GET /api/discover/{media_type}` in the web interface."
+    ),
+)
+async def entdecken(
+    media_type: discover.MediaTypePath,
+    user: CurrentUser,
+    db: DbSession,
+    liste: Annotated[
+        Literal["streaming", "new", "popular"] | None, Query(alias="list")
+    ] = None,
+    genre: Annotated[int | None, Query(ge=1)] = None,
+    page: Annotated[int, Query(ge=1, le=500)] = 1,
+    # Ab hier die Filter der Webseite, unveraendert durchgereicht. Die Adresse
+    # war vor ``list`` eine Zweitschrift von ``discover.discover`` und ist
+    # zugesagt - eine App, die sie so ruft, bekommt dasselbe wie vorher.
+    date_from: Annotated[str | None, Query(pattern=discover.DatePattern)] = None,
+    date_to: Annotated[str | None, Query(pattern=discover.DatePattern)] = None,
+    language: Annotated[str | None, Query(max_length=5)] = None,
+    region: Annotated[str | None, Query(min_length=2, max_length=2)] = None,
+    genre_id: Annotated[int | None, Query(ge=0)] = None,
+    sort: Annotated[Literal["newest", "rating", "popular"], Query()] = "newest",
+    feature_length: Annotated[bool, Query()] = False,
+    min_rating: Annotated[float | None, Query(ge=0, le=10)] = None,
+    hide_unrated: Annotated[bool, Query()] = False,
+    released_in_region: Annotated[bool, Query()] = False,
+    studio_id: Annotated[int | None, Query(ge=1)] = None,
+    known_only: Annotated[bool, Query()] = False,
+) -> MediaPage:
+    if liste is None:
+        return await discover.discover(
+            media_type=media_type,
+            user=user,
+            db=db,
+            date_from=date_from,
+            date_to=date_to,
+            language=language,
+            region=region,
+            genre_id=genre_id if genre_id is not None else genre,
+            sort=sort,
+            page=page,
+            feature_length=feature_length,
+            min_rating=min_rating,
+            hide_unrated=hide_unrated,
+            released_in_region=released_in_region,
+            studio_id=studio_id,
+            known_only=known_only,
+        )
+
+    # ⚠️ ``for_user`` traegt die Altersgrenze des Kontos; ``media.discover``
+    # siebt mit ihr in ``_to_items``. Ohne diese Zeile saehe ein Konto mit
+    # Grenze 12 hier, was es nirgends sonst sieht (``test_altersfilter_waechter``).
+    settings = for_user(load_settings(db), user)
+    try:
+        roh = await media.entdecken(db, settings, media_type, liste, genre_id=genre, page=page)
+    except TmdbError as error:
+        raise discover._http_error(error) from error
+
+    # Der Zustand kommt aus derselben Funktion wie bei Suche und Titelseite:
+    # Sperre vor Datei vor Anfrage, Medienserver als zweite Quelle. Danach
+    # fliegt nur heraus, was schon da ist.
+    items, warnung = await discover._status_for(db, settings, media_type, roh.items, user)
+    fehlt = [item for item in items if item.status not in IN_DER_MEDIATHEK]
+    return roh.model_copy(update={"items": fehlt, "arr_warning": warnung})
 
 # --- Freigeben (Entscheider und Administratoren) ----------------------------
 
@@ -370,6 +461,8 @@ ZUGESAGT = (
     "/api/app/1/storage/me",
     "/api/app/1/search/{media_type}",
     "/api/app/1/discover/{media_type}",
+    # Entdecken der Fernseh-App (docs/app-discover.md)
+    "/api/app/1/discover/genres/{media_type}",
     "/api/app/1/media/{media_type}/{tmdb_id}",
     "/api/app/1/home/recent",
     "/api/app/1/home/trending",

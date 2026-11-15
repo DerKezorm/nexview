@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Sequence
+from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -31,7 +32,12 @@ from ..schemas_media import (
     WatchProviders,
 )
 from . import age_rating, cache, logs
-from .filters import DiscoverFilters
+from .filters import (
+    DiscoverFilters,
+    entdecken_filter,
+    entdecken_seitenzahl,
+    entdecken_tmdb_seiten,
+)
 from .settings_service import AppSettings
 from .tmdb import (
     BACKDROP_SIZE,
@@ -76,6 +82,13 @@ SORT_OPTIONS = {
     # Fenster von zwei Monaten die entferntesten Termine auf Seite 1 und
     # ausgerechnet das, was diese Woche kommt, faele hinten heraus.
     "soonest": {"movie": "primary_release_date.asc", "tv": "first_air_date.asc"},
+    # Nur fuer Entdecken in der Fernseh-App (``filters.entdecken_filter``).
+    # "Neueste zuerst" nach dem Datum **in der Region**: Bei Filmen zaehlt dort
+    # ``release_date`` samt Art; nach dem weltweiten Erstdatum sortiert stuende
+    # ein Film, der jetzt digital erscheint, irgendwo im Sommer.
+    "newest_regional": {"movie": "release_date.desc", "tv": "first_air_date.desc"},
+    # Aller Zeiten nach Stimmen: holt die Klassiker nach vorn.
+    "votes": {"movie": "vote_count.desc", "tv": "vote_count.desc"},
 }
 
 
@@ -469,6 +482,62 @@ async def discover(
         total_pages=min(raw.get("total_pages", 1), 500),
         total_results=raw.get("total_results", 0),
         items=await _to_items(db, settings, media_type, raw.get("results", []), region),
+    )
+
+
+async def entdecken(
+    db: Session,
+    settings: AppSettings,
+    media_type: str,
+    liste: str,
+    *,
+    genre_id: int | None = None,
+    page: int = 1,
+) -> MediaPage:
+    """Eine Seite einer Entdecken-Liste der Fernseh-App - **noch ungesiebt**.
+
+    Liest den festen Block TMDB-Seiten, der zu ``page`` gehoert
+    (``filters.entdecken_tmdb_seiten``), und legt die Titel ohne Doppelte
+    zusammen. Was in der Mediathek liegt, siebt der Aufrufer: Dafuer braucht
+    es den Zustand je Titel, und der gehoert an genau eine Stelle
+    (``routers/discover._status_for``).
+
+    Die Altersgrenze dagegen faellt schon hier, in ``discover`` ueber
+    ``_to_items`` - wie in jeder anderen Liste.
+
+    ``total_pages`` zaehlt Seiten **dieser** Antwort, ``total_results`` ist
+    TMDBs Zahl vor jedem Sieb, also eine Obergrenze.
+    """
+    region = settings.default_region
+    heute = date.today()
+    items: list[MediaItem] = []
+    kennungen: set[int] = set()
+    tmdb_seiten = 0
+    gesamt = 0
+    for seite in entdecken_tmdb_seiten(page):
+        if tmdb_seiten and seite > tmdb_seiten:
+            break
+        ergebnis = await discover(
+            db,
+            settings,
+            media_type,
+            entdecken_filter(
+                liste, media_type, region=region, genre_id=genre_id, page=seite, heute=heute
+            ),
+        )
+        tmdb_seiten = max(ergebnis.total_pages, 1)
+        gesamt = ergebnis.total_results
+        for item in ergebnis.items:
+            # TMDB wiederholt beim Blaettern gelegentlich einen Titel.
+            if item.tmdb_id not in kennungen:
+                kennungen.add(item.tmdb_id)
+                items.append(item)
+    return MediaPage(
+        page=page,
+        total_pages=entdecken_seitenzahl(tmdb_seiten or 500),
+        total_results=gesamt,
+        items=items,
+        demo=settings.use_demo_data,
     )
 
 

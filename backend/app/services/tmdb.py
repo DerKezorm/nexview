@@ -184,11 +184,17 @@ class TmdbClient:
             # Mehrere Firmen ODER-verknuepft schlagen die einzelne Auswahl.
             params["with_companies"] = filters.company_ids or filters.studio_id
         else:
-            # Kein "watch_region" hier: Ohne "with_watch_providers" daneben
-            # ignoriert TMDB den Parameter vollstaendig. Er stand jahrelang
-            # wirkungslos in jeder Serien-Abfrage.
+            # Kein "watch_region" allein: Ohne "with_watch_providers" oder
+            # einen Tarif daneben ignoriert TMDB den Parameter vollstaendig.
+            # Er stand jahrelang wirkungslos in jeder Serien-Abfrage.
             params["with_networks"] = filters.network_ids or None
             params["with_type"] = filters.series_types or None
+
+        # Nur im Abo in dieser Region ("flatrate"). Beides oder keines - siehe
+        # den Kommentar darueber.
+        if filters.watch_region and filters.watch_monetization:
+            params["watch_region"] = filters.watch_region
+            params["with_watch_monetization_types"] = filters.watch_monetization
 
         return await self._get(f"/discover/{media_type}", params)
 

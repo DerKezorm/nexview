@@ -7,6 +7,7 @@ der Medien-Service damit arbeiten koennen, ohne sich gegenseitig zu importieren.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date, timedelta
 
 # Ab welcher Laufzeit ein Film als abendfuellend gilt (Minuten).
 MIN_FEATURE_RUNTIME = 40
@@ -315,6 +316,14 @@ class DiscoverFilters:
     certification_country: str | None = None
     certifications: str = ""
 
+    # --- Streaming (Entdecken der Fernseh-App) ------------------------------
+    # Nur Titel, die in ``watch_region`` im Abo laufen ("flatrate"). TMDB
+    # wertet ``watch_region`` nur zusammen mit einem Anbieter- oder
+    # Tarif-Filter aus; deshalb geht beides nur gemeinsam hinaus (siehe
+    # ``TmdbClient.discover``).
+    watch_region: str | None = None
+    watch_monetization: str = ""
+
     def cache_key(self, media_type: str, textsprache: str = "") -> str:
         """Schluessel fuer den Zwischenspeicher.
 
@@ -339,5 +348,137 @@ class DiscoverFilters:
             f"{self.released_in_region}:{self.studio_id}:{self.min_votes}:{self.max_votes}:"
             f"{self.release_types}:{self.company_ids}:{self.network_ids}:{self.series_types}:"
             f"{self.genres_or}:{self.certification_country}:{self.certifications}:"
-            f"{self.without_genres}:{self.people_ids}"
+            f"{self.without_genres}:{self.people_ids}:{self.watch_region}:"
+            f"{self.watch_monetization}"
         )
+
+
+# --- Entdecken in der Fernseh-App (``/api/app/1/discover/{type}?list=``) ------
+#
+# Drei Listen fuer nexcinema, alle nur mit dem, was in der Mediathek fehlt
+# (gesiebt wird im Router, nicht hier). Die Abfragen selbst sind reine Daten
+# und stehen deshalb hier neben den Regalen.
+#
+# ⚠️ **Nicht an TMDB gemessen** (15.11.2026), anders als die Regale oben: Die
+# Zahlen sind aus den gemessenen Nachbarn abgeleitet. Wer sie aendert, misst
+# vorher - ein zu hoher Wert macht eine Reihe leer, ein zu niedriger fuellt sie
+# mit Rauschen.
+
+#: Die Listen, die die App kennt.
+ENTDECKEN_LISTEN = ("streaming", "new", "popular")
+
+#: Wie weit "Neu auf Streaming" zurueckreicht: die letzten Wochen.
+ENTDECKEN_STREAMING_TAGE = 42
+
+#: "Neu erschienen" reicht so weit wie das Regal beim Stoebern.
+ENTDECKEN_NEU_TAGE = NEU_TAGE
+
+#: Untergrenze der Stimmen bei "Neu auf Streaming". Sortiert wird dort nach
+#: Datum, und ohne Grenze stuende oben namenloses Rauschen (siehe
+#: ``KNOWN_TITLES_MIN_VOTES``). Neue Serien sammeln in sechs Wochen kaum
+#: Stimmen, deshalb dort deutlich weniger.
+ENTDECKEN_STREAMING_STIMMEN = KNOWN_TITLES_MIN_VOTES
+ENTDECKEN_STREAMING_STIMMEN_TV = 5
+
+#: "Beliebt" heisst: aller Zeiten, nach Stimmen sortiert, und gut bewertet.
+#: Die Stimmen holen Klassiker nach vorn (Der Pate, Breaking Bad), die Note
+#: haelt viel Gesehenes, aber Schwaches heraus.
+ENTDECKEN_BELIEBT_WERTUNG = 7.0
+
+#: Welche Sendungsarten bei Serien zaehlen (siehe ``ERZAEHLENDE_SERIEN``):
+#: Dokumentation, Mehrteiler, Reality, Erzaehlend. Talkshows, Nachrichten und
+#: Videos will niemand herunterladen.
+ENTDECKEN_SERIENARTEN = "0|2|3|4"
+
+#: So viele TMDB-Seiten (zu je 20) stecken in einer Seite der Antwort.
+#:
+#: ⚠️ **Ein fester Block, kein "lade nach, bis es reicht".** Die App blaettert
+#: mit ``page``; hinge die Zahl der gelesenen TMDB-Seiten vom Sieb ab, wuesste
+#: die zweite Antwort nicht, wo die erste aufgehoert hat, und Titel kaemen
+#: doppelt oder gar nicht. So deckt Seite ``n`` immer dieselben TMDB-Seiten ab,
+#: und alles, was dort das Sieb uebersteht, geht hinaus (hoechstens 60).
+ENTDECKEN_TMDB_SEITEN = 3
+
+
+def entdecken_tmdb_seiten(page: int) -> list[int]:
+    """Welche TMDB-Seiten zu Seite ``page`` der Antwort gehoeren.
+
+    TMDB liefert hoechstens Seite 500; was darueber liegt, faellt weg.
+    """
+    erste = (page - 1) * ENTDECKEN_TMDB_SEITEN + 1
+    return [s for s in range(erste, erste + ENTDECKEN_TMDB_SEITEN) if s <= 500]
+
+
+def entdecken_seitenzahl(tmdb_seiten: int) -> int:
+    """Wie viele Seiten die Antwort hat, wenn TMDB ``tmdb_seiten`` meldet."""
+    return max(1, -(-min(max(tmdb_seiten, 1), 500) // ENTDECKEN_TMDB_SEITEN))
+
+
+def entdecken_filter(
+    liste: str,
+    media_type: str,
+    *,
+    region: str,
+    genre_id: int | None = None,
+    page: int = 1,
+    heute: date | None = None,
+) -> DiscoverFilters:
+    """Die TMDB-Abfrage einer Entdecken-Liste.
+
+    ``page`` ist die **TMDB**-Seite, nicht die der Antwort
+    (``entdecken_tmdb_seiten``). Eine unbekannte Liste ist ein ``ValueError``;
+    der Router laesst sie gar nicht erst durch.
+    """
+    heute = heute or date.today()
+    ist_film = media_type == "movie"
+    gemeinsam: dict = {
+        "page": page,
+        "genre_id": genre_id,
+        "region": region,
+        # Kurzfilme raus wie beim Stoebern; bei Serien waere es die
+        # Folgenlaenge, und jede Sitcom flog heraus.
+        "min_runtime": MIN_FEATURE_RUNTIME if ist_film else None,
+        "series_types": "" if ist_film else ENTDECKEN_SERIENARTEN,
+    }
+
+    if liste == "streaming":
+        # Filme: Das Datum ist das der **digitalen** Veroeffentlichung in der
+        # Region (Art 4), nicht der Kinostart - ein Film, der im Sommer im Kino
+        # lief und jetzt bei einem Dienst ankommt, ist genau das, was die
+        # Liste zeigen soll. Serien kennen bei TMDB nur die Erstausstrahlung.
+        return DiscoverFilters(
+            date_from=(heute - timedelta(days=ENTDECKEN_STREAMING_TAGE)).isoformat(),
+            date_to=heute.isoformat(),
+            released_in_region=ist_film,
+            release_types="4" if ist_film else "2|3",
+            watch_region=region,
+            watch_monetization="flatrate",
+            min_votes=ENTDECKEN_STREAMING_STIMMEN if ist_film else ENTDECKEN_STREAMING_STIMMEN_TV,
+            sort="newest_regional",
+            **gemeinsam,
+        )
+
+    if liste == "new":
+        # Kino **und** Heimkino in der Region: begrenzt, regulaer, digital,
+        # Datentraeger. Nach Beliebtheit wie das Regal "Neu erschienen" -
+        # nach Datum stuende oben, was gestern irgendwo erschien.
+        return DiscoverFilters(
+            date_from=(heute - timedelta(days=ENTDECKEN_NEU_TAGE)).isoformat(),
+            date_to=heute.isoformat(),
+            released_in_region=ist_film,
+            release_types="2|3|4|5" if ist_film else "2|3",
+            min_votes=KNOWN_TITLES_MIN_VOTES,
+            sort="popular",
+            **gemeinsam,
+        )
+
+    if liste == "popular":
+        # Ohne Datum: aller Zeiten. Die Mindeststimmen fuer eine Note setzt
+        # der Client selbst (``MIN_VOTES_FOR_RATING``).
+        return DiscoverFilters(
+            min_rating=ENTDECKEN_BELIEBT_WERTUNG,
+            sort="votes",
+            **gemeinsam,
+        )
+
+    raise ValueError(f"Unknown discover list: {liste}")

@@ -401,6 +401,10 @@
     "demo",
     "tmdb_warning"
   ],
+  "GET /api/app/1/discover/genres/{media_type}": [
+    "[].id",
+    "[].name"
+  ],
   "GET /api/app/1/discover/{media_type}": [
     "arr_warning",
     "demo",

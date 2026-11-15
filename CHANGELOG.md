@@ -12,6 +12,18 @@ tag exists for it.
 
 ---
 
+## 1.8.0
+
+### Added
+
+- **Discover for TV apps.** Three lists of what is not in the library yet, for a TV
+  app's Discover screen: new on streaming services in your region, recently out
+  (cinema and home release), and popular of all time, each for films or series and
+  by genre. Series with missing seasons stay in, titles above an account's age limit
+  never appear. For app developers: `list` on `/api/app/1/discover/{type}` and
+  `/api/app/1/discover/genres/{type}`, described in `docs/app-discover.md`. Without
+  `list` the call answers as before.
+
 ## 1.7.0 – 14.11.2026
 
 ### Added

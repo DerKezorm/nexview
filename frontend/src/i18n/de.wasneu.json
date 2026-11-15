@@ -858,6 +858,34 @@
           "Ein Code gilt zehn Minuten und nur einmal. Wer sich erst anmelden muss, landet danach wieder beim Code.",
           "Neu in der Datenbank ist eine Tabelle für die Codes, sonst ändert sich nichts."
         ]
+      },
+      "1.8.0": {
+        "lead": "Diesmal steht jemand anderes vorne: **Es gibt nexview jetzt für den Mac, gebaut von J0n4e.** Und falls du es verpasst hast: Für iPhone und iPad gibt es nexview im App Store.",
+        "sections": [
+          {
+            "title": "nexview für den Mac, aus der Community",
+            "where": "GitHub → J0n4e/nexview_mac",
+            "body": "J0n4e hat eine eigene Mac-App für nexview gebaut und veröffentlicht. Sie zeigt deinen nexview in einem richtigen Mac-Fenster und bringt mit, was ein Browser-Tab nicht kann: Mitteilungen auch bei geschlossenem Fenster, ein Symbol in der Menüleiste mit der Zahl der ungelesenen Mitteilungen und offenen Freigaben, Anmeldung per Touch ID, mehrere Server und Start beim Anmelden. Neue Funktionen von nexview hat sie sofort, weil alles live von deinem Server kommt. Sie braucht einen Mac mit Apple-Chip und macOS 14 oder neuer. Es ist eine Community-App und kein offizielles Projekt; Fragen und Fehler zur Mac-App gehören deshalb in ihr Repository auf GitHub. Danke, J0n4e, für die Arbeit und die Idee! Zu sehen, dass jemand auf nexview aufbaut, ist das Schönste, was einem Projekt wie diesem passieren kann.",
+            "link": {
+              "label": "Nexview for Mac auf GitHub",
+              "href": "https://github.com/J0n4e/nexview_mac"
+            }
+          },
+          {
+            "title": "nexview für iPhone und iPad",
+            "where": "Profil → Konto → Sicherheit → iPhone-App verbinden",
+            "body": "Zur Erinnerung: Die App gibt es kostenlos im App Store. Damit fragst du unterwegs an, behältst Anfragen, Kontingent und Glocke im Blick und stöberst in denselben Regalen wie im Browser. Wer freigeben darf, tut das von unterwegs, Administratoren erledigen dort den täglichen Betrieb, und Kinder bekommen einen eigenen Kindermodus. Zum Verbinden scannt jede Person den QR-Code aus ihrem Profil; Kinder bekommen ihren Code von den Eltern.",
+            "link": {
+              "label": "nexview im App Store",
+              "href": "https://apps.apple.com/app/nexview-app/id6823895623"
+            }
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Für Fernseher-Apps gibt es drei neue Listen zum Entdecken, die nur zeigen, was in deiner Mediathek noch fehlt: neu bei Streamingdiensten in deiner Region, neu erschienen im Kino und fürs Heimkino, und beliebt aller Zeiten, je für Filme oder Serien und nach Genre. Serien mit fehlenden Staffeln bleiben drin, die Altersgrenze eines Kontos gilt wie überall. Für Entwickler beschrieben in docs/app-discover.md.",
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

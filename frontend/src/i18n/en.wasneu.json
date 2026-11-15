@@ -858,6 +858,34 @@
           "A code is good for ten minutes and once. If you have to sign in first, you land back at the code afterwards.",
           "The database gains one table for the codes; nothing else changes."
         ]
+      },
+      "1.8.0": {
+        "lead": "This time someone else takes the front row: **nexview is now on the Mac, built by J0n4e.** And in case you missed it: for iPhone and iPad, nexview is on the App Store.",
+        "sections": [
+          {
+            "title": "nexview for Mac, from the community",
+            "where": "GitHub → J0n4e/nexview_mac",
+            "body": "J0n4e built and published a Mac app for nexview. It shows your nexview in a proper Mac window and adds what a browser tab can't: notifications even with the window closed, a menu bar icon with the number of unread notifications and requests waiting for approval, Touch ID sign-in, several servers and opening at login. It gets nexview's new features right away, because everything comes live from your server. It needs a Mac with Apple silicon and macOS 14 or newer. It is a community app, not an official project, so questions and problems with the Mac app go to its repository on GitHub. Thank you, J0n4e, for the work and the idea! Seeing someone build on nexview is the best thing that can happen to a project like this.",
+            "link": {
+              "label": "Nexview for Mac on GitHub",
+              "href": "https://github.com/J0n4e/nexview_mac"
+            }
+          },
+          {
+            "title": "nexview for iPhone and iPad",
+            "where": "Profile → Account → Security → Connect the iPhone app",
+            "body": "A reminder: the app is free on the App Store. With it you request on the go, keep an eye on your requests, your quota and the bell, and browse the same shelves as in the browser. Whoever may approve does so on the go, administrators handle the daily work there, and children get a kids mode of their own. To connect it, everyone scans the QR code from their own profile; children get their code from their parents.",
+            "link": {
+              "label": "nexview on the App Store",
+              "href": "https://apps.apple.com/app/nexview-app/id6823895623"
+            }
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "TV apps get three new lists to discover from, showing only what your library is still missing: new on streaming services in your region, recently out in cinemas and for home viewing, and popular of all time, each for movies or series and by genre. Series with missing seasons stay in, and an account's age limit applies as everywhere. Described for developers in docs/app-discover.md.",
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

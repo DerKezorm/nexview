@@ -886,6 +886,20 @@
           "Für Fernseher-Apps gibt es drei neue Listen zum Entdecken, die nur zeigen, was in deiner Mediathek noch fehlt: neu bei Streamingdiensten in deiner Region, neu erschienen im Kino und fürs Heimkino, und beliebt aller Zeiten, je für Filme oder Serien und nach Genre. Serien mit fehlenden Staffeln bleiben drin, die Altersgrenze eines Kontos gilt wie überall. Für Entwickler beschrieben in docs/app-discover.md.",
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.9.0": {
+        "lead": "Eine kleine Fassung für Fernseher-Apps: Auf der Seite eines Schauspielers können sie jetzt zeigen, welche seiner Filme und Serien euch noch fehlen.",
+        "sections": [
+          {
+            "title": "Schauspieler in Fernseher-Apps",
+            "where": "In einer Fernseher-App, die mit nexview verbunden ist, auf der Seite eines Schauspielers",
+            "body": "Eine Fernseher-App kann nexview jetzt nach einer Person fragen und bekommt ihre Filme und Serien mit dem Stand, den nexview dazu kennt: schon in der Mediathek, angefragt oder noch nicht da. So kann sie die fehlenden gleich zum Anfragen anbieten. Die Biografie kommt in der Sprache der App, auf Englisch, wo TMDB keine in dieser Sprache hat. Was über der Altersgrenze eines Kontos liegt, taucht nie auf, und Kindergeräte bekommen die Personen gar nicht. Für Entwickler beschrieben in docs/app-person.md."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

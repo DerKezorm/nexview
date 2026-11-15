@@ -886,6 +886,20 @@
           "TV apps get three new lists to discover from, showing only what your library is still missing: new on streaming services in your region, recently out in cinemas and for home viewing, and popular of all time, each for movies or series and by genre. Series with missing seasons stay in, and an account's age limit applies as everywhere. Described for developers in docs/app-discover.md.",
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.9.0": {
+        "lead": "A small release for TV apps: on an actor's page they can now show which of their films and series you are still missing.",
+        "sections": [
+          {
+            "title": "Actors in TV apps",
+            "where": "In a TV app connected to nexview, on an actor's page",
+            "body": "A TV app can now ask nexview about a person and gets their films and series with what nexview knows about each one: already in the library, requested, or not there yet. So it can offer the missing ones for a request right away. The biography comes in the app's language, in English where TMDB has none in that language. Titles above an account's age limit never show up, and children's devices don't get people at all. Described for developers in docs/app-person.md."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

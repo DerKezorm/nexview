@@ -113,6 +113,6 @@ on `code`, not on `message`.
 
 Without a TMDB key nexview runs on sample data; the lists then hold a few made-up titles or none.
 
-Available from the nexview version after 1.7.0. An older nexview ignores `list` and answers with its unfiltered
+Available from nexview 1.8.0. An older nexview ignores `list` and answers with its unfiltered
 discover list, and has no `/discover/genres`: it answers `404` there. Check `version` in `/api/app/1/me` or
 `/api/app/1/hello` and hide the screen on older versions.

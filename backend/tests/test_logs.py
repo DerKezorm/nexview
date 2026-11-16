@@ -6,6 +6,7 @@ import logging
 import time
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.services import logs
@@ -57,6 +58,43 @@ def test_suche_im_text(admin_client: TestClient) -> None:
 
 def test_ungueltige_stufe(admin_client: TestClient) -> None:
     assert admin_client.get("/api/logs?level=BLABLA").status_code == 422
+
+
+def test_nur_fehler_schickt_nicht_jede_zeile_durch_den_ausdruck(
+    admin_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Die Befunde (Kachel, Dashboard) und die Analyse fragen bei jedem Abruf
+    nach den Fehlern der letzten 24 Stunden. Auf der Synology stehen rund
+    50.000 Zeilen in der Datei, und jede lief durch den Ausdruck: 120 ms je
+    Abruf fuer 193 Fehlerzeilen. Eine Zeile ohne den Namen der Stufe kann
+    nicht passen."""
+    logs.setup()
+    logs.clear()
+    log = logging.getLogger("nexview.test")
+    for nummer in range(200):
+        log.info("Routine line %s", nummer)
+    log.info("A line that only mentions ERROR in its text")
+    log.error("Could not add movie: rejected by Radarr")
+    log.critical("Database is gone")
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+
+    gelesen: list[str] = []
+    echt = logs._parse
+
+    def zaehlend(zeile: str) -> logs.LogLine | None:
+        gelesen.append(zeile)
+        return echt(zeile)
+
+    monkeypatch.setattr(logs, "_parse", zaehlend)
+    fehler = logs.read(limit=2000, level="ERROR")
+
+    assert [z.message for z in fehler] == [
+        "Database is gone",
+        "Could not add movie: rejected by Radarr",
+    ]
+    # Nur die drei Zeilen, die "ERROR" oder "CRITICAL" ueberhaupt enthalten.
+    assert len(gelesen) == 3, len(gelesen)
 
 
 def test_fremdbibliotheken_fluten_das_protokoll_nicht(admin_client: TestClient) -> None:

@@ -12,6 +12,7 @@ Dass kein gesperrter Teil durchkommt, prueft der Waechter in
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import replace
 from typing import Any
 
@@ -208,3 +209,49 @@ def test_kacheln_der_reihe_tragen_ihren_zustand(
     }
     assert zustand[910003] == "blocked"
     assert zustand[910002] == "not_requested"
+
+
+@pytest.mark.anyio
+async def test_reihe_und_empfehlungen_warten_nicht_aufeinander(
+    tmdb: _FakeTmdb, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beides fragt TMDB fuer sich. Nacheinander kostete eine kalte Titelseite
+    eine Runde TMDB mehr (gemessen am 16.11.2026: 1,1 statt 0,6 s)."""
+    reihe_gefragt = asyncio.Event()
+    empfehlungen_sahen_reihe: list[bool] = []
+    unveraendert = tmdb.details
+
+    async def collection(collection_id: int) -> dict[str, Any]:
+        reihe_gefragt.set()
+        tmdb.reihen_abrufe.append(collection_id)
+        return {"id": collection_id, "name": "Beispielreihe", "parts": list(tmdb.teile)}
+
+    async def details(media_type: str, tmdb_ids: list[int]) -> dict[int, dict[str, Any]]:
+        if 910101 in tmdb_ids:
+            # Wartet kurz darauf, dass die Reihe schon gefragt ist -
+            # nacheinander geschieht das nie.
+            try:
+                await asyncio.wait_for(reihe_gefragt.wait(), timeout=1.0)
+            except TimeoutError:
+                pass
+            empfehlungen_sahen_reihe.append(reihe_gefragt.is_set())
+        return await unveraendert(media_type, tmdb_ids)
+
+    async def detail(
+        media_type: str, tmdb_id: int, *, ausfuehrlich: bool = False
+    ) -> dict[str, Any]:
+        return {
+            **_teil(tmdb_id, "2010-06-01"),
+            "belongs_to_collection": tmdb.zugehoerig,
+            "recommendations": {"results": [_teil(910101, "2012-01-01")]},
+        }
+
+    monkeypatch.setattr(tmdb, "collection", collection)
+    monkeypatch.setattr(tmdb, "details", details)
+    monkeypatch.setattr(tmdb, "detail", detail)
+
+    fertig = await _detail()
+
+    assert [item.tmdb_id for item in fertig.recommendations] == [910101]
+    assert fertig.collection is not None
+    assert empfehlungen_sahen_reihe == [True]

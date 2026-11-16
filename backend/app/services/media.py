@@ -32,7 +32,7 @@ from ..schemas_media import (
     WatchProvider,
     WatchProviders,
 )
-from . import age_rating, cache, logs
+from . import age_rating, cache, logs, zugleich
 from .filters import (
     DiscoverFilters,
     entdecken_filter,
@@ -1033,26 +1033,34 @@ async def full_detail(
 
     genres = await _genre_map(db, settings, media_type)
     basis = _enrich(_base_item(raw, media_type, genres), raw, media_type, region, mit_staffeln=True)
-    basis = (await _englische_beschreibungen(db, settings, media_type, [basis]))[0]
 
+    async def ohne_reihe() -> None:
+        return None
+
+    # Beschreibung, Empfehlungen und Filmreihe gleichzeitig: Jedes fragt TMDB
+    # fuer sich, keins braucht die Antwort eines anderen.
+    #
     # Die Empfehlungen laufen bewusst durch ``_to_items`` statt durch
     # ``_base_item``: nur dort greift die Altersbeschraenkung. Sonst waere
     # ausgerechnet die Zeile "Das koennte dir auch gefallen" das Schlupfloch,
     # durch das gesperrte Titel wieder sichtbar werden - mitsamt Link auf ihre
     # Detailseite. Nebenbei bekommen sie so auch Laufzeit und Freigabe.
-    empfehlungen = await _to_items(
-        db,
-        settings,
-        media_type,
-        [
-            eintrag
-            for eintrag in (raw.get("recommendations") or {}).get("results") or []
-            if eintrag.get("id")
-        ][:MAX_RECOMMENDATIONS],
-        region,
+    beschrieben, empfehlungen, reihe = await zugleich.alle(
+        _englische_beschreibungen(db, settings, media_type, [basis]),
+        _to_items(
+            db,
+            settings,
+            media_type,
+            [
+                eintrag
+                for eintrag in (raw.get("recommendations") or {}).get("results") or []
+                if eintrag.get("id")
+            ][:MAX_RECOMMENDATIONS],
+            region,
+        ),
+        _filmreihe(db, settings, raw, tmdb_id, region) if mit_reihe else ohne_reihe(),
     )
-
-    reihe = await _filmreihe(db, settings, raw, tmdb_id, region) if mit_reihe else None
+    basis = beschrieben[0]
 
     ist_film = media_type == "movie"
     return MediaDetail(

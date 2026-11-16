@@ -38,9 +38,11 @@ from ..services import (
     requests_service,
     streaming,
     watch,
+    zugleich,
 )
 from ..services.beschaffung import (
     KLASSE_UHD,
+    Lesestand,
     get_beschaffung,
     jahr_aus,
     lesestand,
@@ -377,18 +379,40 @@ async def title_detail(
     # lief bei einer stummen nexcrate jede Abfrage einzeln in die volle
     # Zeitgrenze, und die Seite stand bis zu einer halben Minute bei "Wird
     # geladen".
+    #
+    # ⚠️ **Titel, Staffeln, Empfehlungen und Filmreihe gleichzeitig.** Keins
+    # braucht die Antwort eines anderen, und nacheinander summierten sich die
+    # Wartezeiten: gemessen am 16.11.2026 mit 0,3 bis 0,8 s je nexcrate-Antwort
+    # vier Sekunden fuer einen Film, sechs fuer eine Serie. Die Datenbank
+    # fassen alle nur zwischen zwei ``await`` an, in diesem einen Faden.
     with get_beschaffung(settings).kurze_frist():
-        # Was der Weg zum Titel selbst nicht beantwortet hat - jede Fassung,
-        # jede Staffel. Die Empfehlungen zaehlen nicht dazu.
-        with lesestand() as stand:
-            await _mit_status(db, settings, media_type, [detail], user)
-            await _staffeln(db, settings, detail, media_type)
-            _teils_nach_staffeln(detail)
+
+        async def titel() -> Lesestand:
+            # Was der Weg zum Titel selbst nicht beantwortet hat - jede
+            # Fassung, jede Staffel. Die Empfehlungen zaehlen nicht dazu: Sie
+            # laufen in eigenen Aufgaben, und die sehen diesen Lesestand nicht.
+            with lesestand() as stand:
+                await zugleich.alle(
+                    _mit_status(db, settings, media_type, [detail], user),
+                    _staffeln(db, settings, detail, media_type),
+                )
+                # Braucht beides: den Zustand des Titels und die Staffeln.
+                _teils_nach_staffeln(detail)
+            return stand
+
+        stand, *_ = await zugleich.alle(
+            titel(),
+            _mit_status(db, settings, media_type, detail.recommendations, user),
+            _mit_status(
+                db,
+                settings,
+                media_type,
+                detail.collection.items if detail.collection is not None else [],
+                user,
+            ),
+        )
         detail.status_unconfirmed = not stand.gelesen
         detail.status_refused = stand.abgelehnt
-        await _mit_status(db, settings, media_type, detail.recommendations, user)
-        if detail.collection is not None:
-            await _mit_status(db, settings, media_type, detail.collection.items, user)
 
     # Laeuft der Titel in einem Abo, das *dieser* Benutzer hat? Hier und nicht
     # in ``full_detail``: Dessen TMDB-Antwort liegt fuer alle gemeinsam im

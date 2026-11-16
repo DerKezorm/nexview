@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-from . import http_log
+from . import http_log, tls
 from .filters import (
     MIN_VOTES_FOR_RATING,
     MIN_VOTES_FOR_RATING_SORT,
@@ -56,6 +56,8 @@ async def _http() -> httpx.AsyncClient:
                 _client = httpx.AsyncClient(
                     base_url=BASE_URL,
                     timeout=TIMEOUT,
+                    # Nicht in der Schleife gelesen - siehe ``tls``.
+                    verify=await tls.kontext(),
                     headers={"Accept": "application/json"},
                     # Eine Zeile pro Aufruf ins Protokoll - siehe http_log.py.
                     event_hooks=http_log.event_hooks("tmdb"),

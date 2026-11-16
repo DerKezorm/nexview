@@ -105,6 +105,44 @@ def _schlanker_schluessel(
     return f"detail:{SLIM_SHAPE}:{media_type}:{tmdb_id}:{region}:{settings.default_language}"
 
 
+async def _schlanke_details(
+    db: Session,
+    settings: AppSettings,
+    media_type: str,
+    tmdb_ids: Sequence[int],
+    region: str,
+) -> dict[int, dict[str, Any]]:
+    """Die schlanken Detailantworten dieser Titel - gemerkt oder frisch geholt.
+
+    Die drei Stellen, die sie brauchen (``_to_items``, ``erlaubte_kennungen``,
+    ``regionale_daten``), lasen bis zum 16.11.2026 jeden Eintrag einzeln und
+    zweimal, mitten in der Ereignisschleife: einmal fuer "fehlt er?", einmal
+    zum Verwenden. Jetzt wird jeder einmal gelesen, alle in einer Abfrage und
+    ausserhalb der Schleife (``cache.lesen_viele``), und was fehlt, geht in
+    einem Commit zurueck in den Zwischenspeicher. Warum das zaehlt, steht in
+    ``cache``.
+
+    Titel, die TMDB nicht liefert, fehlen im Ergebnis - wie vorher, als
+    ``cache.read`` fuer sie ``None`` gab.
+    """
+    schluessel = {
+        tmdb_id: _schlanker_schluessel(settings, media_type, tmdb_id, region)
+        for tmdb_id in tmdb_ids
+    }
+    gemerkt = await cache.lesen_viele(db, schluessel.values())
+    details = {
+        tmdb_id: gemerkt[key] for tmdb_id, key in schluessel.items() if key in gemerkt
+    }
+    fehlend = [tmdb_id for tmdb_id in schluessel if tmdb_id not in details]
+    if fehlend:
+        geholt = await _client(settings, region).details(media_type, fehlend)
+        await cache.schreiben_viele(
+            db, {schluessel[tmdb_id]: roh for tmdb_id, roh in geholt.items()}, cache.DETAIL_TTL
+        )
+        details.update(geholt)
+    return details
+
+
 def _client(settings: AppSettings, region: str | None = None) -> TmdbClient:
     return TmdbClient(
         api_key=settings.tmdb_api_key,
@@ -265,21 +303,28 @@ async def _englische_beschreibungen(
 
     texte: dict[int, str] = {}
     fehlend: list[int] = []
-    for tmdb_id in offen:
-        gemerkt = cache.read(db, _beschreibungs_schluessel(media_type, tmdb_id))
-        if gemerkt is None:
+    # Ausserhalb der Ereignisschleife und in einer Abfrage (``cache.lesen_viele``).
+    gemerkt = await cache.lesen_viele(
+        db, (_beschreibungs_schluessel(media_type, tmdb_id) for tmdb_id in offen)
+    )
+    for tmdb_id in dict.fromkeys(offen):
+        schluessel = _beschreibungs_schluessel(media_type, tmdb_id)
+        if schluessel not in gemerkt:
             fehlend.append(tmdb_id)
         else:
-            texte[tmdb_id] = str(gemerkt)
+            texte[tmdb_id] = str(gemerkt[schluessel])
 
     if fehlend:
         englisch = TmdbClient(
             api_key=settings.tmdb_api_key, language="en-US", region=settings.default_region
         )
         geholt = await englisch.overviews(media_type, fehlend)
-        for tmdb_id, text in geholt.items():
-            cache.write(db, _beschreibungs_schluessel(media_type, tmdb_id), text, cache.DETAIL_TTL)
-            texte[tmdb_id] = text
+        await cache.schreiben_viele(
+            db,
+            {_beschreibungs_schluessel(media_type, tmdb_id): text for tmdb_id, text in geholt.items()},
+            cache.DETAIL_TTL,
+        )
+        texte.update(geholt)
 
     if not any(texte.values()):
         return items
@@ -324,7 +369,7 @@ async def englischer_titel(
         return None
 
     schluessel = f"title:en:{media_type}:{tmdb_id}"
-    gemerkt = cache.read(db, schluessel)
+    gemerkt = await cache.lesen(db, schluessel)
     if gemerkt is not None:
         return str(gemerkt) or None
 
@@ -371,19 +416,13 @@ async def _to_items(
     """
     genres = await _genre_map(db, settings, media_type)
     items = [_base_item(raw, media_type, genres) for raw in results if raw.get("id")]
-
-    def schluessel(tmdb_id: int) -> str:
-        return _schlanker_schluessel(settings, media_type, tmdb_id, region)
-
-    missing = [item.tmdb_id for item in items if cache.read(db, schluessel(item.tmdb_id)) is None]
-    if missing:
-        fetched = await _client(settings, region).details(media_type, missing)
-        for tmdb_id, detail in fetched.items():
-            cache.write(db, schluessel(tmdb_id), detail, cache.DETAIL_TTL)
+    details = await _schlanke_details(
+        db, settings, media_type, [item.tmdb_id for item in items], region
+    )
 
     enriched: list[MediaItem] = []
     for item in items:
-        detail = cache.read(db, schluessel(item.tmdb_id))
+        detail = details.get(item.tmdb_id)
         if not _darf_sehen(detail, media_type, settings):
             continue
         enriched.append(_enrich(item, detail, media_type, region) if detail else item)
@@ -649,21 +688,13 @@ async def erlaubte_kennungen(
     if settings.age_limit is None:
         return set(tmdb_ids)
 
-    region = settings.default_region
-
-    def schluessel(tmdb_id: int) -> str:
-        return _schlanker_schluessel(settings, media_type, tmdb_id, region)
-
-    fehlend = [tmdb_id for tmdb_id in tmdb_ids if cache.read(db, schluessel(tmdb_id)) is None]
-    if fehlend:
-        geholt = await _client(settings, region).details(media_type, fehlend)
-        for tmdb_id, roh in geholt.items():
-            cache.write(db, schluessel(tmdb_id), roh, cache.DETAIL_TTL)
-
+    details = await _schlanke_details(
+        db, settings, media_type, tmdb_ids, settings.default_region
+    )
     return {
         tmdb_id
         for tmdb_id in tmdb_ids
-        if _darf_sehen(cache.read(db, schluessel(tmdb_id)), media_type, settings)
+        if _darf_sehen(details.get(tmdb_id), media_type, settings)
     }
 
 
@@ -687,18 +718,10 @@ async def regionale_daten(
     if not tmdb_ids:
         return {}
 
-    def schluessel(tmdb_id: int) -> str:
-        return _schlanker_schluessel(settings, "movie", tmdb_id, region)
-
-    fehlend = [tmdb_id for tmdb_id in tmdb_ids if cache.read(db, schluessel(tmdb_id)) is None]
-    if fehlend:
-        geholt = await _client(settings, region).details("movie", fehlend)
-        for tmdb_id, roh in geholt.items():
-            cache.write(db, schluessel(tmdb_id), roh, cache.DETAIL_TTL)
-
+    details = await _schlanke_details(db, settings, "movie", tmdb_ids, region)
     ergebnis: dict[int, tuple[str, int]] = {}
     for tmdb_id in tmdb_ids:
-        roh = cache.read(db, schluessel(tmdb_id))
+        roh = details.get(tmdb_id)
         if not roh:
             continue
         treffer = release_date_for(roh, region, arten)

@@ -26,7 +26,7 @@ from typing import Any
 
 import httpx
 
-from ... import http_log, logs
+from ... import http_log, logs, tls
 from . import fehler
 from .fehler import NexcrateError
 
@@ -114,6 +114,8 @@ async def _http() -> httpx.AsyncClient:
                 _client = httpx.AsyncClient(
                     transport=_transport,
                     timeout=TIMEOUT,
+                    # Nicht in der Schleife gelesen - siehe ``services/tls``.
+                    verify=await tls.kontext(),
                     headers={"Accept": "application/json"},
                     event_hooks=http_log.event_hooks("nexcrate"),
                     limits=httpx.Limits(

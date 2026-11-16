@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.11.0
+
+### Added
+
+- **`NEXVIEW_SEERR_PORT` sets the port of the Seerr-compatible API.** App
+  catalogs such as TrueNAS can only publish a port they can also set, and they
+  set it through the environment. When the variable is set, Nexview listens on
+  that port, the settings page shows it locked, and the API is on by default.
+  Switching it off in the app still wins. Without the variable nothing changes.
+
 ## 1.10.2 – 16.11.2026
 
 ### Fixed

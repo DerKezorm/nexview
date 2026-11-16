@@ -114,6 +114,11 @@ services:
       # etwas auf 8000 liegt, kommt Nexview gar nicht hoch. Sonst leer lassen.
       # NEXVIEW_PORT: 8123
 
+      # Port der Seerr-kompatiblen API. Gesetzt geht er vor der Einstellung in
+      # der App und schaltet die API ab Werk ein (in der App ausgeschaltet
+      # bleibt sie aus). Muss zum veroeffentlichten Port oben passen.
+      # NEXVIEW_SEERR_PORT: 5055
+
     healthcheck:
       # ⚠️ **Der Port muss aus NEXVIEW_PORT kommen, nicht fest hier stehen.**
       # Sonst prüft die Kontrolle die 8000, während Nexview im

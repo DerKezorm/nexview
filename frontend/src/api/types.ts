@@ -1473,6 +1473,8 @@ export type AppSettings = {
   /** Seerr-kompatible Schnittstelle auf eigenem Port (Issue #17), ab Werk aus. */
   seerr_api_enabled: boolean;
   seerr_api_port: number;
+  /** Port kommt aus `NEXVIEW_SEERR_PORT` und lässt sich hier nicht ändern. */
+  seerr_api_port_from_env: boolean;
   /** Lauscht der Port gerade? Nur gelesen, kommt vom Server. */
   seerr_api_listening: boolean;
   /** `port_unavailable`, wenn der Port belegt ist oder nicht geöffnet werden darf. */

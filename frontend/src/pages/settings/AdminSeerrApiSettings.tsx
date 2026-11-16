@@ -42,7 +42,7 @@ export function AdminSeerrApiSettings() {
   }, [settings])
 
   const speichern = useMutation({
-    mutationFn: (werte: { seerr_api_enabled: boolean; seerr_api_port: number }) =>
+    mutationFn: (werte: { seerr_api_enabled: boolean; seerr_api_port?: number }) =>
       api.put<AppSettings>('/api/settings', werte),
     onSuccess: (neu) => {
       queryClient.setQueryData(['settings'], neu)
@@ -66,7 +66,10 @@ export function AdminSeerrApiSettings() {
     )
   }
 
-  const zahl = Number(port)
+  // Kommt der Port aus NEXVIEW_SEERR_PORT, hat ihn der Container
+  // veröffentlicht. Das Feld ist dann gesperrt und wird nicht mitgeschickt.
+  const portFest = settings.seerr_api_port_from_env
+  const zahl = portFest ? settings.seerr_api_port : Number(port)
   const portGueltig = Number.isInteger(zahl) && zahl >= 1024 && zahl <= 65535
   const geaendert = an !== settings.seerr_api_enabled || zahl !== settings.seerr_api_port
 
@@ -103,7 +106,7 @@ export function AdminSeerrApiSettings() {
         <span>
           <span className="text-sm font-medium text-mist-100">{t('seerrApi.enable')}</span>
           <span className="mt-0.5 block text-xs leading-relaxed text-mist-600">
-            {t('seerrApi.enableHint')}
+            <Betont text={t(portFest ? 'seerrApi.enableHintEnv' : 'seerrApi.enableHint')} />
           </span>
         </span>
       </label>
@@ -115,15 +118,20 @@ export function AdminSeerrApiSettings() {
           inputMode="numeric"
           min={1024}
           max={65535}
-          value={port}
+          value={portFest ? String(settings.seerr_api_port) : port}
+          readOnly={portFest}
+          aria-readonly={portFest}
           onChange={(event) => {
             setPort(event.target.value)
             setMeldung(null)
           }}
-          className="w-32 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100"
+          className={
+            'w-32 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-mist-100' +
+            (portFest ? ' cursor-not-allowed opacity-70' : '')
+          }
         />
         <span className="text-xs leading-relaxed text-mist-600">
-          <Betont text={t('seerrApi.portHint')} />
+          <Betont text={t(portFest ? 'seerrApi.portFromEnv' : 'seerrApi.portHint')} />
         </span>
       </label>
 
@@ -143,7 +151,9 @@ export function AdminSeerrApiSettings() {
       <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
-          onClick={() => speichern.mutate({ seerr_api_enabled: an, seerr_api_port: zahl })}
+          onClick={() =>
+            speichern.mutate(portFest ? { seerr_api_enabled: an } : { seerr_api_enabled: an, seerr_api_port: zahl })
+          }
           loading={speichern.isPending}
           disabled={!geaendert || !portGueltig}
         >

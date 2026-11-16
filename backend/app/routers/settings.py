@@ -43,6 +43,7 @@ from ..services.settings_service import (
     load_settings,
     public_settings,
     save_settings,
+    seerr_port_aus_umgebung,
 )
 from ..services.tmdb import TmdbClient, TmdbError
 from ..vendor.nexoidc import flow
@@ -791,6 +792,23 @@ def update_settings(
         )
 
     geaendert = payload.model_dump(exclude_unset=True)
+    seerr_port_fest = seerr_port_aus_umgebung()
+    # Der Container hat genau diesen Port veroeffentlicht. Ein anderer waere
+    # von aussen nicht erreichbar - geaendert wird er dort, nicht hier.
+    # Derselbe Port wird nicht gespeichert (``pop``): Faellt die Variable
+    # spaeter weg, gilt wieder, was vorher eingestellt war.
+    if (
+        seerr_port_fest is not None
+        and geaendert.get("seerr_api_port") is not None
+        and geaendert.pop("seerr_api_port") != seerr_port_fest
+    ):
+        raise meldungen.fehler(
+            "seerr_api_port_from_env",
+            "Der Port der Seerr-API kommt aus NEXVIEW_SEERR_PORT und lässt "
+            "sich nur dort ändern.",
+            status.HTTP_409_CONFLICT,
+            port=seerr_port_fest,
+        )
     if payload.beschaffung is not None and payload.beschaffung != aktuell.beschaffung:
         # ⚠️ **Der Merker fuers Nachreichen.** Uebergeben wird eine Anfrage
         # genau einmal, bei der Freigabe. Ohne diese Zeile blieben alle

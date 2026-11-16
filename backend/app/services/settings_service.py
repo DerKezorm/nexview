@@ -7,6 +7,7 @@ an die Oberflaeche gegeben - sie verlassen den Server nie im Klartext.
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
@@ -782,9 +783,41 @@ def _zeitraum(wert: str | None) -> QuotaPeriod:
         return QuotaPeriod.week
 
 
+#: Setzt den Seerr-Port von aussen (Issue #17, TrueNAS-Katalog). Ein Katalog
+#: veroeffentlicht einen Port nur, wenn er ihn auch einstellen kann - und das
+#: geht dort nur ueber eine Umgebungsvariable.
+SEERR_PORT_ENV = "NEXVIEW_SEERR_PORT"
+
+
+def seerr_port_aus_umgebung() -> int | None:
+    """Der Port aus ``NEXVIEW_SEERR_PORT``, oder ``None``.
+
+    Leer, keine Zahl oder ausserhalb 1024-65535 heisst ``None``: Dann gilt,
+    was in den Einstellungen steht. Ein Tippfehler im Container soll den Port
+    nicht still auf etwas Unerwartetes legen - ``verbindungsbericht`` nennt
+    ihn beim Start.
+    """
+    zahl = _zahl(os.getenv(SEERR_PORT_ENV))
+    return zahl if zahl is not None and 1024 <= zahl <= 65535 else None
+
+
+def _umgebungsvorgaben() -> dict[str, str]:
+    """Vorgaben, die eine Umgebungsvariable verschiebt.
+
+    ⚠️ **Nur die Vorgabe, nicht der Wert.** Wer ``NEXVIEW_SEERR_PORT`` setzt,
+    hat den Port veroeffentlicht und will die Schnittstelle - deshalb ist sie
+    dann ab Werk an. Hat jemand den Schalter in der Oberflaeche selbst
+    umgelegt, steht eine Zeile in der Datenbank, und die gewinnt: "aus" bleibt
+    aus.
+    """
+    if seerr_port_aus_umgebung() is not None:
+        return {"seerr_api_enabled": "on"}
+    return {}
+
+
 def _raw_values(db: Session) -> dict[str, str]:
     stored = {row.key: (row.value or "") for row in db.scalars(select(Setting))}
-    return {**DEFAULTS, **stored}
+    return {**DEFAULTS, **_umgebungsvorgaben(), **stored}
 
 
 def _verbindungen_lesen(db: Session, values: dict[str, str]) -> tuple[Verbindung, ...]:
@@ -1020,7 +1053,9 @@ def load_settings(db: Session, *, frisch: bool = False) -> AppSettings:
         seerr_api_enabled=_flag(values["seerr_api_enabled"], standard=False),
         # Ein Port unter 1024 braucht Rechte, die der Container-Nutzer nicht
         # hat; ein unbrauchbarer Wert faellt auf Seerrs Port zurueck.
-        seerr_api_port=_seerr_port(values["seerr_api_port"]),
+        # ``NEXVIEW_SEERR_PORT`` geht vor: Der Container hat genau diesen Port
+        # veroeffentlicht, ein anderer waere von aussen nicht erreichbar.
+        seerr_api_port=seerr_port_aus_umgebung() or _seerr_port(values["seerr_api_port"]),
         episode_requests_enabled=_flag(values["episode_requests_enabled"], standard=True),
         quota_default_movies=profil("quota_default_movies"),
         quota_default_series=profil("quota_default_series"),
@@ -1182,6 +1217,9 @@ def public_settings(db: Session) -> dict[str, object]:
         "update_check": settings.update_check,
         "seerr_api_enabled": settings.seerr_api_enabled,
         "seerr_api_port": settings.seerr_api_port,
+        # Wahr, wenn der Port aus ``NEXVIEW_SEERR_PORT`` kommt - die Seite
+        # sperrt dann das Feld und sagt, wo er sich aendern laesst.
+        "seerr_api_port_from_env": seerr_port_aus_umgebung() is not None,
         **_seerr_api_zustand(),
         "password_login": settings.password_login,
         "backup_schedule": settings.backup_schedule,
@@ -1287,8 +1325,6 @@ def verbindungsbericht() -> None:
     * Welche weiteren Geheimnisse sind eingetragen, und sind sie lesbar?
     * Mit wie vielen bcrypt-Runden werden Passwoerter gehasht?
     """
-    import os
-
     from ..config import BCRYPT_ROUNDS_DEFAULT, get_settings
     from ..db import SessionLocal
 
@@ -1298,6 +1334,19 @@ def verbindungsbericht() -> None:
     else:
         quelle = f"file {einstellungen.key_file}"
     logger.info("Secret key source: %s", quelle)
+
+    seerr_roh = (os.getenv(SEERR_PORT_ENV) or "").strip()
+    if seerr_roh:
+        if seerr_port_aus_umgebung() is None:
+            logger.warning(
+                "%s=%r is not a port between 1024 and 65535 and is ignored; "
+                "the Seerr-compatible API uses the port from the settings.",
+                SEERR_PORT_ENV,
+                seerr_roh,
+            )
+        else:
+            logger.info("Seerr-compatible API port set by %s=%s", SEERR_PORT_ENV, seerr_roh)
+
     if not einstellungen.secret_key:
         logger.info(
             "secret.key present: %s - if that file is NOT inside the mounted "

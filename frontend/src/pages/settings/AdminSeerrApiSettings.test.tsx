@@ -29,6 +29,7 @@ function stand(zusatz: Partial<AppSettings> = {}): AppSettings {
   return {
     seerr_api_enabled: false,
     seerr_api_port: 5055,
+    seerr_api_port_from_env: false,
     seerr_api_listening: false,
     seerr_api_error: null,
     ...zusatz,
@@ -74,5 +75,26 @@ describe('AdminSeerrApiSettings', () => {
     await waitFor(() =>
       expect(api.put).toHaveBeenCalledWith('/api/settings', { seerr_api_enabled: true, seerr_api_port: 5056 }),
     )
+  })
+
+  it('sperrt den Port aus NEXVIEW_SEERR_PORT und schickt nur den Schalter', async () => {
+    vi.mocked(api.get).mockResolvedValue(
+      stand({ seerr_api_enabled: true, seerr_api_port: 5099, seerr_api_port_from_env: true }) as never,
+    )
+    vi.mocked(api.put).mockResolvedValue(
+      stand({ seerr_api_enabled: false, seerr_api_port: 5099, seerr_api_port_from_env: true }) as never,
+    )
+    rendernSchlicht(<AdminSeerrApiSettings />)
+
+    const feld = await screen.findByRole('spinbutton')
+    expect(feld).toHaveValue(5099)
+    expect(feld).toHaveAttribute('readonly')
+    expect(screen.getAllByText('NEXVIEW_SEERR_PORT').length).toBeGreaterThan(0)
+
+    fireEvent.click(screen.getByRole('checkbox'))
+    const knopf = screen.getAllByRole('button').at(-1)!
+    expect(knopf).not.toBeDisabled()
+    fireEvent.click(knopf)
+    await waitFor(() => expect(api.put).toHaveBeenCalledWith('/api/settings', { seerr_api_enabled: false }))
   })
 })

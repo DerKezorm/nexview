@@ -343,6 +343,7 @@ copy `.env.example` to `.env`:
 | `NEXVIEW_CSP` | Content security rules: `on` (default), `report-only`, or `off`. See below. |
 | `NEXVIEW_FRAME_ANCESTORS` | Who may put Nexview in a frame: `none` (default), `self`, or an origin. See below. |
 | `NEXVIEW_IMG_SOURCES` | Extra image hosts, space separated. Only needed if calendar posters stay blank. See below. |
+| `NEXVIEW_SEERR_PORT` | Port of the Seerr-compatible API (1024–65535). When set, it overrides the port in the settings and switches the API on by default; switching it off in the app still wins. For app catalogs such as TrueNAS. See "Seerr-compatible API". |
 | `NEXVIEW_BETREIBER` | Emergency exit: the **username** of the account that owns this installation. Normally unset — the account from the setup wizard owns it. Only needed if the owner locks themselves out. See below. |
 
 **No TMDB, Radarr or Sonarr keys belong in `.env`** — you enter those in the app.
@@ -792,6 +793,18 @@ In a container the port has to be published as well:
     ports:
       - "8000:8000"
       - "5055:5055"
+```
+
+If your platform sets the port for you, as app catalogs like TrueNAS do, use
+`NEXVIEW_SEERR_PORT` instead. Nexview then listens on that port, the field in the settings
+shows it locked, and the API is on unless someone switches it off there:
+
+```yaml
+    ports:
+      - "8000:8000"
+      - "5056:5056"
+    environment:
+      NEXVIEW_SEERR_PORT: 5056
 ```
 
 **The Seerr API key is a Nexview API token** (see above). Requests are made with the account

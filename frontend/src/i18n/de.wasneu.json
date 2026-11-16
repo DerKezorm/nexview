@@ -928,6 +928,21 @@
         "small": [
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.10.2": {
+        "lead": "Eine Fehlerbehebung: Titelseiten öffnen deutlich schneller.",
+        "sections": [
+          {
+            "title": "Schnellere Titelseiten",
+            "where": "Die Seite eines Films oder einer Serie, im Browser und in Fernseher-Apps",
+            "body": "Eine Titelseite fragte nexcrate dieselben Titel doppelt und alles nacheinander, bei einer Serie bis zu zwanzigmal. Jetzt fragt sie jeden Titel einmal und das Unabhängige gleichzeitig. Auf einem Testaufbau mit den üblichen Wartezeiten von nexcrate öffnet die Seite eines Films in unter anderthalb Sekunden statt in etwa vier, die einer Serie in etwa zwei statt sieben. Was die Seite zeigt, bleibt gleich."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Die Kachel für Home Assistant und die Analyse zählen die Fehler im Protokoll schneller.",
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

@@ -12,6 +12,20 @@ tag exists for it.
 
 ---
 
+## 1.10.2 – 16.11.2026
+
+### Fixed
+
+- **Title pages open faster.** A title page asked nexcrate about the same
+  titles twice and one question after the other: up to twenty for a series.
+  It now asks each title once and the independent questions at the same time.
+  Measured on a test setup with nexcrate's usual delays: a film's page in
+  under 1.5 s instead of about 4 s, a series' in about 2 s instead of 7 s. The
+  answers are the same as before.
+- **Counting errors in the log is quicker.** The dashboard tile and the analysis
+  count the errors in the log on every call; lines without that level are now
+  skipped before the pattern runs.
+
 ## 1.10.1 – 16.11.2026
 
 ### Fixed

@@ -928,6 +928,21 @@
         "small": [
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.10.2": {
+        "lead": "A fix: title pages open much faster.",
+        "sections": [
+          {
+            "title": "Faster title pages",
+            "where": "The page of a film or series, in the browser and in TV apps",
+            "body": "A title page asked nexcrate about the same titles twice and one question after the other, up to twenty times for a series. It now asks each title once and the independent questions at the same time. On a test setup with nexcrate's usual delays a film's page opens in under one and a half seconds instead of about four, a series' in about two instead of seven. What the page shows stays the same."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "The Home Assistant tile and the analysis count the errors in the log faster.",
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

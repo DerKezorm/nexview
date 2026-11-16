@@ -914,6 +914,20 @@
         "small": [
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.10.1": {
+        "lead": "A fix: nexview no longer makes everything else wait while the discover lists load.",
+        "sections": [
+          {
+            "title": "Discover no longer holds things up",
+            "where": "Discover in the browser and in TV apps, and everything loaded at the same time",
+            "body": "While loading the discover lists, nexview read each title's stored data in a way that made every other request wait. In a TV app even the quota and your own requests came only after several seconds. These reads now run alongside, and everything else answers right away while the lists load."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.10.1 – 16.11.2026
+
+### Fixed
+
+- **Discover lists no longer hold up everything else.** Opening the discover
+  lists read each title's stored TMDB data on the server's main loop, so every
+  other request waited until the lists were done: a TV app's quota and own
+  requests came back after seven seconds instead of at once. These reads now
+  run beside the loop, and other requests answer while the lists load.
+
 ## 1.10.0 – 16.11.2026
 
 ### Added

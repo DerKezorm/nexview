@@ -914,6 +914,20 @@
         "small": [
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.10.1": {
+        "lead": "Eine Fehlerbehebung: nexview wartet beim Laden der Entdecken-Listen nicht mehr mit allem anderen.",
+        "sections": [
+          {
+            "title": "Entdecken hält nichts mehr auf",
+            "where": "Entdecken im Browser und in Fernseher-Apps, und alles, was gleichzeitig geladen wird",
+            "body": "Beim Laden der Entdecken-Listen las nexview die gespeicherten Daten jedes Titels so, dass alle anderen Anfragen solange warten mussten. In einer Fernseher-App kamen so selbst das Kontingent und die eigenen Wünsche erst nach mehreren Sekunden. Jetzt laufen diese Lesevorgänge nebenher, und alles andere antwortet sofort, während die Listen laden."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

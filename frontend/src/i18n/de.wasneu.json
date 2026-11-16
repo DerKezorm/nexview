@@ -943,6 +943,21 @@
           "Die Kachel für Home Assistant und die Analyse zählen die Fehler im Protokoll schneller.",
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.11.0": {
+        "lead": "Den Port der Seerr-kompatiblen API kann jetzt auch der Container setzen.",
+        "sections": [
+          {
+            "title": "NEXVIEW_SEERR_PORT",
+            "where": "Einstellungen des Containers, und Einstellungen, System, Seerr API",
+            "body": "App-Kataloge wie TrueNAS können einen Port nur veröffentlichen, wenn sie ihn auch einstellen können, und das geht dort über die Umgebung. Ist NEXVIEW_SEERR_PORT gesetzt, lauscht Nexview dort für die Seerr-kompatible API, die Einstellungsseite zeigt den Port gesperrt, und die API ist ab Werk an. Wer sie in der App ausschaltet, behält „aus“. Ohne die Variable bleibt alles wie bisher: ab Werk aus, Port 5055."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Ein unbrauchbarer Wert wird übergangen und beim Start im Protokoll genannt.",
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

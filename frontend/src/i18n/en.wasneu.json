@@ -943,6 +943,21 @@
           "The Home Assistant tile and the analysis count the errors in the log faster.",
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.11.0": {
+        "lead": "The port of the Seerr-compatible API can now be set from the container.",
+        "sections": [
+          {
+            "title": "NEXVIEW_SEERR_PORT",
+            "where": "Container settings, and Settings, System, Seerr API",
+            "body": "App catalogs such as TrueNAS can only publish a port they can also set, and they set it through the environment. When NEXVIEW_SEERR_PORT is set, Nexview listens there for the Seerr-compatible API, the settings page shows the port locked, and the API is on by default. Switching it off in the app still wins. Without the variable everything stays as before: off by default, port 5055."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "An invalid value is ignored and named in the log at startup.",
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

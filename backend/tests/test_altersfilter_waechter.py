@@ -267,6 +267,7 @@ PROBEN: dict[str, str] = {
     "GET /api/app/1/search/{media_type}": "/api/app/1/search/movie?q=Titel",
     "GET /api/app/1/home/trending": "/api/app/1/home/trending",
     "GET /api/app/1/media/{media_type}/{tmdb_id}": f"/api/app/1/media/movie/{GESPERRT}",
+    "GET /api/app/1/detail/{media_type}/{tmdb_id}": f"/api/app/1/detail/movie/{GESPERRT}",
 }
 
 #: Titeladressen, die hier **nicht** angerufen werden - jede mit Grund.

@@ -183,6 +183,18 @@ _zweitschrift(router, "/search/{media_type}", discover.router, discover.search, 
 _zweitschrift(
     router, "/media/{media_type}/{tmdb_id}", discover.router, discover.media_detail, "GET", "One title"
 )
+# Die ganze Titelseite der Weboberflaeche: Besetzung, Trailer, wo zu sehen,
+# Empfehlungen. Die Fernseh-App zeigt daraus Trailer und Besetzung in
+# Entdecken (docs/app-discover.md). Dieselbe Altersgrenze wie im Browser
+# (``test_altersfilter_waechter``).
+_zweitschrift(
+    router,
+    "/detail/{media_type}/{tmdb_id}",
+    details.router,
+    details.title_detail,
+    "GET",
+    "One title in full",
+)
 _zweitschrift(
     router,
     "/discover/genres/{media_type}",
@@ -502,6 +514,8 @@ ZUGESAGT = (
     "/api/app/1/people",
     "/api/app/1/person/{person_id}",
     "/api/app/1/media/{media_type}/{tmdb_id}",
+    # Die ganze Titelseite (docs/app-discover.md)
+    "/api/app/1/detail/{media_type}/{tmdb_id}",
     "/api/app/1/home/recent",
     "/api/app/1/home/trending",
     "/api/app/1/requests",

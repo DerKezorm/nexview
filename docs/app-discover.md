@@ -98,6 +98,19 @@ different genre lists (series have "Action & Adventure" instead of "Action").
 `GET /api/app/1/search/{type}?q=…` is not filtered: it returns every match, each with its `status`. Show "Already
 there" for `downloaded` and `in_library`, "Requested" for a running request, and offer a request otherwise.
 
+## A title in full
+
+```
+GET /api/app/1/detail/{type}/{tmdb_id}
+```
+
+The whole title page of the web interface, for a title page in the app: everything `GET /api/app/1/media/{type}/{id}`
+sends, and besides it `cast` (TMDB person id, name, role, photo), `crew`, `trailer` (`key`, `name`, `site`,
+`language`; the video lies at YouTube, `key` is its id there), `watch` (where it streams in the account's region),
+`recommendations`, `collection` and, for series, the seasons with their state. The cast leads to
+`GET /api/app/1/person/{person_id}` (see `app-person.md`). A title above the account's age limit gives `404`, as in the
+browser. An older nexview answers `404` without a code; the app then takes `/media/{type}/{id}`.
+
 ## Errors
 
 | Status | When |

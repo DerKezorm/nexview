@@ -900,6 +900,20 @@
         "small": [
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.10.0": {
+        "lead": "A small release for TV apps: for films and series you don't have yet, they now show the trailer and the cast.",
+        "sections": [
+          {
+            "title": "Trailer and cast in TV apps",
+            "where": "In a TV app connected to nexview, on the page of a title that is not there yet",
+            "body": "A TV app now gets the whole title page from nexview, as the browser shows it: with the cast, their roles and photos, and with the trailer. So for a film you don't have yet it can offer the trailer and lead from the cast to an actor's page. An account's age limit applies as in the browser. Described for developers in docs/app-discover.md."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

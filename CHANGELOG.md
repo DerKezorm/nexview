@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.10.0 – 16.11.2026
+
+### Added
+
+- **Whole title page for TV apps.** A TV app can now get the full title page of
+  the web interface, cast and trailer included, so it can show them for titles
+  that are not in the library yet. The account's age limit applies as in the
+  browser. For app developers: `/api/app/1/detail/{type}/{id}`, described in
+  `docs/app-discover.md`.
+
 ## 1.9.0 – 15.11.2026
 
 ### Added

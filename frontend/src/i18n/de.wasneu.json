@@ -900,6 +900,20 @@
         "small": [
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.10.0": {
+        "lead": "Eine kleine Fassung für Fernseher-Apps: Bei Filmen und Serien, die euch noch fehlen, zeigen sie jetzt Trailer und Besetzung.",
+        "sections": [
+          {
+            "title": "Trailer und Besetzung in Fernseher-Apps",
+            "where": "In einer Fernseher-App, die mit nexview verbunden ist, auf der Seite eines Titels, der noch nicht da ist",
+            "body": "Eine Fernseher-App bekommt von nexview jetzt die ganze Titelseite, wie der Browser sie zeigt: mit Besetzung samt Rollen und Fotos und mit dem Trailer. So kann sie bei einem Film, den ihr noch nicht habt, den Trailer anbieten und von der Besetzung zur Seite eines Schauspielers führen. Die Altersgrenze eines Kontos gilt wie im Browser. Für Entwickler beschrieben in docs/app-discover.md."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

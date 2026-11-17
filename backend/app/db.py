@@ -26,9 +26,35 @@ BACKUPS_TO_KEEP = 5
 
 _settings = get_settings()
 
+#: Wie viele Verbindungen der Vorrat zum Wiederverwenden aufhebt. Mehr als
+#: diese duerfen jederzeit offen sein, siehe ``max_overflow`` unten.
+VORRAT_PLAETZE = 5
+
+# ⚠️ **``max_overflow=-1``: Der Vorrat hat keine Obergrenze, und das muss so
+# bleiben.** Mit dem Standard (fuenf Plaetze plus zehn Ueberlauf) blieb Nexview
+# minutenlang stehen, gemeldet in Issue #17 am 17.11.2026: "QueuePool limit of
+# size 5 overflow 10 reached, connection timed out, timeout 30.00".
+#
+# Der Ablauf: Viele Routen sind ``async`` und halten ihre Sitzung, waehrend sie
+# auf TMDB warten (etwa ``seerr_api/routen.py::_detail``). Jede gleichzeitige
+# Anfrage belegt so eine Verbindung. Ein Fernseher-Client wie Litefin schickt
+# beim Blaettern Dutzende auf einmal. Ab der sechzehnten wartet die Entnahme
+# - und zwar **synchron in der Ereignisschleife**. Die fuenfzehn Halter laufen
+# in derselben Schleife und koennen ihre Verbindung deshalb nie zurueckgeben:
+# Die Schleife steht 30 Sekunden, bis die Entnahme aufgibt, und das wiederholt
+# sich, solange der Ansturm anhaelt. Weil der Seerr-Port, die Oberflaeche und
+# alle Hintergrundschleifen dieselbe Schleife teilen, stand dabei alles.
+#
+# Ohne Obergrenze wartet keine Entnahme auf eine andere. SQLite mit WAL
+# vertraegt viele gleichzeitige Leser; Schreiber warten wie bisher ueber
+# ``busy_timeout``. Die fuenf Plaetze bleiben fuer das Wiederverwenden im
+# Normalbetrieb, Verbindungen darueber hinaus werden bei der Rueckgabe
+# geschlossen.
 engine = create_engine(
     f"sqlite:///{_settings.db_path}",
     connect_args={"check_same_thread": False},
+    pool_size=VORRAT_PLAETZE,
+    max_overflow=-1,
     future=True,
 )
 

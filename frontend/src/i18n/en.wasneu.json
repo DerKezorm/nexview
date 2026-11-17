@@ -958,6 +958,20 @@
           "An invalid value is ignored and named in the log at startup.",
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.11.1": {
+        "lead": "A fix: many requests at once no longer bring Nexview to a halt.",
+        "sections": [
+          {
+            "title": "No more standstill under many requests",
+            "where": "Everywhere, above all with TV apps such as Litefin through the Seerr-compatible API",
+            "body": "A TV app sends dozens of requests at the same time while you browse. Each of them held one of fifteen database connections while waiting for TMDB, and the sixteenth waited for a free one without letting the others finish. Web interface, Seerr-compatible API and background jobs then stood still in steps of 30 seconds. The number of connections is no longer capped; five are still kept for reuse."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

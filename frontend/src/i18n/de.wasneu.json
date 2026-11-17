@@ -958,6 +958,20 @@
           "Ein unbrauchbarer Wert wird übergangen und beim Start im Protokoll genannt.",
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.11.1": {
+        "lead": "Eine Fehlerbehebung: Viele Anfragen auf einmal legen Nexview nicht mehr still.",
+        "sections": [
+          {
+            "title": "Kein Stillstand mehr bei vielen Anfragen",
+            "where": "Überall, vor allem mit Fernseher-Apps wie Litefin über die Seerr-kompatible API",
+            "body": "Eine Fernseher-App schickt beim Blättern Dutzende Anfragen gleichzeitig. Jede hielt beim Warten auf TMDB eine von fünfzehn Datenbankverbindungen, und die sechzehnte wartete auf eine freie, ohne die anderen fertig werden zu lassen. Oberfläche, Seerr-kompatible API und Hintergrundaufgaben standen dann in Schritten von 30 Sekunden still. Die Zahl der Verbindungen ist jetzt nicht mehr begrenzt; fünf werden weiter zum Wiederverwenden aufgehoben."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

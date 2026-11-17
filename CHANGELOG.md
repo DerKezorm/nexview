@@ -12,6 +12,19 @@ tag exists for it.
 
 ---
 
+## 1.11.1 – 17.11.2026
+
+### Fixed
+
+- **Many requests at once no longer freeze Nexview.** A TV client such as
+  Litefin sends dozens of requests at the same time while you browse. Each of
+  them held one of fifteen database connections while waiting for TMDB, and
+  the sixteenth waited for a free one without letting the others finish. Web
+  interface, Seerr-compatible API and background jobs then stood still in
+  steps of 30 seconds and logged "QueuePool limit of size 5 overflow 10
+  reached". The number of connections is no longer capped; five are still
+  kept for reuse. Reported in #17.
+
 ## 1.11.0 – 16.11.2026
 
 ### Added

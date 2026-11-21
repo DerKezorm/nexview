@@ -14,6 +14,12 @@ tag exists for it.
 
 ## 1.11.2
 
+### Changed
+
+- **New icon: a popcorn bucket.** Logo, browser tab and the icons for the
+  home screen are new. The logo follows light and dark mode; the browser tab
+  follows your system.
+
 ### Fixed
 
 - **Log lines from the iPhone and TV apps show up again.** A request made with

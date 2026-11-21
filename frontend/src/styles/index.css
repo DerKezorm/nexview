@@ -49,6 +49,29 @@
     'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
 }
 
+/* Die Farben des Zeichens (components/Logo.tsx), dunkle Fassung. Dieselben
+   Werte stehen in public/logo.svg und tools/symbole.mjs. Bewusst ausserhalb
+   von @theme: es sind keine Farben fuer Tailwind-Klassen. */
+:root {
+  --nv-logo-grund: #170b0d;
+  --nv-logo-rand: #ff3b4e;
+  --nv-logo-rand-deckung: 0.45;
+  --nv-logo-verlauf-1: #ffc9ce;
+  --nv-logo-verlauf-2: #ff3b4e;
+  --nv-logo-verlauf-3: #c81e2f;
+  --nv-logo-streifen: #ff5a67;
+}
+
+:root[data-theme='light'] {
+  --nv-logo-grund: #ffffff;
+  --nv-logo-rand: #e11d2f;
+  --nv-logo-rand-deckung: 0.3;
+  --nv-logo-verlauf-1: #ff8a95;
+  --nv-logo-verlauf-2: #e11d2f;
+  --nv-logo-verlauf-3: #8f0f1c;
+  --nv-logo-streifen: #d90f25;
+}
+
 /* Heller Modus.
  *
  * Kein einziger Baustein wird dafuer angefasst: die Oberflaeche benutzt

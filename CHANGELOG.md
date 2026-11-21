@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.11.3 – 21.11.2026
+
+### Fixed
+
+- **A web app installed after an update shows the new icon.** Icons and the
+  favicon came without a cache header, so the browser kept them as long as it
+  guessed. After the new icon in 1.11.2, Chrome installed the web app with the
+  old icon from its cache, even after uninstalling it. The browser now asks
+  before it uses them, like it does for the manifest.
+
 ## 1.11.2 – 21.11.2026
 
 ### Changed

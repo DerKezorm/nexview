@@ -991,6 +991,20 @@
         "small": [
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.11.3": {
+        "lead": "A fix: a freshly installed web app shows the new icon.",
+        "sections": [
+          {
+            "title": "The new icon in the installed app too",
+            "where": "Web app on the computer and the phone",
+            "body": "Icons and the favicon came without a note on how long the browser may keep them. After the new icon in 1.11.2, Chrome therefore installed the web app with the old icon from its cache, even after uninstalling it. The browser now asks before using them, like it does for the manifest. On Windows the taskbar may show the old icon for a while; pinning the app again helps."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

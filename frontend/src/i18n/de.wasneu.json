@@ -991,6 +991,20 @@
         "small": [
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.11.3": {
+        "lead": "Eine Fehlerbehebung: Eine neu installierte Web-App zeigt das neue Symbol.",
+        "sections": [
+          {
+            "title": "Neues Symbol auch in der installierten App",
+            "where": "Web-App auf dem Computer und dem Handy",
+            "body": "Symbole und Favicon kamen ohne Angabe, wie lange der Browser sie behalten darf. Nach dem neuen Symbol in 1.11.2 installierte Chrome die Web-App deshalb mit dem alten aus dem eigenen Speicher, auch nach dem Deinstallieren. Jetzt fragt der Browser vorher nach, wie beim Manifest. Unter Windows kann die Taskleiste das alte Symbol noch eine Weile zeigen; die App neu anzuheften hilft."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

@@ -25,6 +25,6 @@ def test_die_symbole_des_manifests_werden_nachgefragt() -> None:
     import json
 
     manifest = json.loads((PUBLIC / "manifest.webmanifest").read_text(encoding="utf-8"))
-    symbole = {Path(icon["src"]).name for icon in manifest["icons"]}
+    symbole = {Path(icon["src"].split("?")[0]).name for icon in manifest["icons"]}
 
     assert symbole <= _STETS_NACHFRAGEN, sorted(symbole - _STETS_NACHFRAGEN)

@@ -2,7 +2,13 @@
 <html lang="de" class="dark">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <!--
+      ⚠️ ?v=2 seit dem neuen Symbol (1.11.2): Browser hatten die alten Symbole
+      ohne Cache-Angabe gespeichert und zeigten sie weiter. Eine neue Adresse
+      umgeht diesen Eintrag. Bei einem neuen Symbol die Zahl erhöhen, hier, im
+      Manifest und in sw.js.
+    -->
+    <link rel="icon" type="image/svg+xml" href="/logo.svg?v=2" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
       ⚠️ Absolut, nicht relativ: Das Backend schreibt beim Start jedes
@@ -23,7 +29,7 @@
          will die allgemeine dazu, Safari liest weiterhin nur diese. -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Nexview" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png?v=2" />
     <meta name="theme-color" content="#0b0b0f" />
     <title>Nexview</title>
     <!-- Vor dem ersten Zeichnen: sonst blitzt bei "hell" kurz die dunkle

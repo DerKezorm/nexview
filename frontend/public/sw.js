@@ -37,8 +37,8 @@ self.addEventListener('push', (ereignis) => {
   const titel = daten.title || 'Nexview'
   const optionen = {
     body: daten.body || '',
-    icon: 'icon-192.png',
-    badge: 'badge-96.png',
+    icon: 'icon-192.png?v=2',
+    badge: 'badge-96.png?v=2',
     /* Gleiche Marke ersetzt statt zu stapeln: Dieselbe Aussage zum selben
        Titel steht sonst nach einer Nacht dreimal untereinander. */
     tag: daten.tag || 'nexview',

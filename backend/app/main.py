@@ -542,11 +542,27 @@ def _index_mit_basis(index_file: Path) -> str | None:
     return marke + html
 
 
-#: Dateien ohne Hash im Namen, die sich mit jedem Update aendern: der Service
-#: Worker fuer Web Push und das Manifest der Web-App. ``no-cache`` heisst
-#: nicht "nicht speichern", sondern "vor dem Benutzen nachfragen" - der
-#: Browser holt sie nur neu, wenn sie sich geaendert haben.
-_STETS_NACHFRAGEN = frozenset({"sw.js", "manifest.webmanifest"})
+#: Dateien ohne Hash im Namen, die sich mit einem Update aendern koennen: der
+#: Service Worker fuer Web Push, das Manifest der Web-App und die Symbole.
+#: ``no-cache`` heisst nicht "nicht speichern", sondern "vor dem Benutzen
+#: nachfragen" - der Browser holt sie nur neu, wenn sie sich geaendert haben.
+#:
+#: ⚠️ Die Symbole gehoeren dazu: Ohne Angabe schaetzt der Browser selbst, wie
+#: lange er sie behalten darf (ein Zehntel ihres Alters), und nach dem neuen
+#: Symbol in 1.11.2 installierte Chrome die Web-App mit dem alten aus dem
+#: eigenen Speicher - auch nach Deinstallieren und neu Installieren.
+_STETS_NACHFRAGEN = frozenset(
+    {
+        "sw.js",
+        "manifest.webmanifest",
+        "logo.svg",
+        "icon-192.png",
+        "icon-512.png",
+        "icon-maskable-512.png",
+        "apple-touch-icon.png",
+        "badge-96.png",
+    }
+)
 _NACHFRAGE_KOPF = {"Cache-Control": "no-cache"}
 
 # ⚠️ Ohne diese Zeile kaeme das Manifest als ``application/octet-stream``:

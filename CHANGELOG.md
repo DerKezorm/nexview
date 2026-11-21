@@ -12,6 +12,16 @@ tag exists for it.
 
 ---
 
+## 1.11.2
+
+### Fixed
+
+- **Log lines from the iPhone and TV apps show up again.** A request made with
+  an API key or a paired device names the key next to the user, in brackets
+  (`alex [Apple TV · Living room]`). The log view took such lines for the
+  continuation of a stack trace and left them out, so they were missing from
+  the log page, the error count and the search.
+
 ## 1.11.1 – 17.11.2026
 
 ### Fixed

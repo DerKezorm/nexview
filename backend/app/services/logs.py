@@ -96,11 +96,19 @@ LEVEL_ORDER = ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
 # Fuer das Auslesen. Der Klammerteil ist **optional**: Nach einem Update stehen
 # in derselben Datei noch Zeilen im alten Format ohne Vorgangsnummer, und die
 # sollen weiter lesbar bleiben.
+#
+# ⚠️ Der Kontext darf selbst Klammern enthalten: Bei Anfragen mit API-Schluessel
+# oder gekoppeltem Geraet heisst der Akteur ``u:<Name> [Apple TV · <Name>]``
+# (``deps.py``, ``seerr_api/zugang.py``). Mit ``[^\]]*`` passte so eine Zeile
+# nicht, galt als Fortsetzung eines Stacktrace und fehlte in Ansicht, Zaehler
+# und Suche - gerade die Anfragen der iPhone- und Fernseher-Apps. Darum reicht
+# der Kontext jetzt bis zum ersten ``] | ``; der Text der Meldung darf diese
+# Folge enthalten, er steht dahinter.
 LINE_PATTERN = re.compile(
     r"^(?P<time>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\s+"
     r"(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+"
     r"(?P<logger>\S+)\s"
-    r"(?:\[(?P<ctx>[^\]]*)\]\s)?"
+    r"(?:\[(?P<ctx>.*?)\]\s)?"
     r"\|\s(?P<message>.*)$"
 )
 
@@ -508,16 +516,17 @@ def _parse(zeile: str) -> LogLine | None:
 
     daten = treffer.groupdict()
     ctx = (daten.pop("ctx") or "").strip()
-    nummer: str | None = None
-    benutzer: str | None = None
-    for stueck in ctx.split():
-        if stueck == "-":
-            continue
-        if stueck.startswith("u:"):
-            benutzer = stueck[2:]
-        else:
-            nummer = stueck
-    return LogLine(**daten, request_id=nummer, user=benutzer)
+    # Aufbau aus ``_ContextFilter``: ``<nummer> u:<benutzer>``, beides optional,
+    # ``-`` wenn nichts da ist. Die Nummer hat nie Leerzeichen, der Benutzer
+    # schon (``u:anna [Apple TV · Wohnzimmer]``): Alles ab ``u:`` ist er.
+    if ctx.startswith("u:"):
+        nummer, benutzer = "", ctx[2:]
+    else:
+        nummer, _, rest = ctx.partition(" ")
+        benutzer = rest[2:] if rest.startswith("u:") else None
+    if nummer == "-":
+        nummer = ""
+    return LogLine(**daten, request_id=nummer or None, user=benutzer or None)
 
 
 def stempel(zeitpunkt: datetime) -> str:

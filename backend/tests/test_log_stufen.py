@@ -284,6 +284,69 @@ def test_alte_zeilen_ohne_nummer_bleiben_lesbar() -> None:
     assert eintrag.request_id is None
 
 
+def test_zeile_mit_klammer_im_akteur_wird_gelesen() -> None:
+    """Anfragen mit Schluessel oder gekoppeltem Geraet: Klammer im Akteur.
+
+    So steht es seit 1.3.0 in jeder Zeile der iPhone- und Fernseher-Apps
+    (``deps.py``: ``f"{username} [{eintrag.name}]"``). Vorher hielt das Muster
+    solche Zeilen fuer Fortsetzungen eines Stacktrace, und sie fehlten in
+    Ansicht, Fehlerzaehler und Suche.
+    """
+    zeile = (
+        "2026-11-16 09:41:07 WARNING  nexview.app1 "
+        "[6db88b u:kiosk [Apple TV · Wohnzimmer]] | Slow answer from TMDB (4.2 s)\n"
+    )
+    eintrag = logs._parse(zeile)
+
+    assert eintrag is not None
+    assert eintrag.level == "WARNING"
+    assert eintrag.request_id == "6db88b"
+    assert eintrag.user == "kiosk [Apple TV · Wohnzimmer]"
+    assert eintrag.message == "Slow answer from TMDB (4.2 s)"
+
+
+def test_akteur_der_seerr_schicht_und_klammer_in_der_meldung() -> None:
+    """Seerr-Schicht haengt ``for <name>`` an; die Meldung darf ``] | `` enthalten."""
+    zeile = (
+        "2026-11-16 09:41:07 INFO     nexview.seerr "
+        "[a1b2c3 u:silo [Silo] for kiosk] | Parsed [x] | y"
+    )
+    eintrag = logs._parse(zeile)
+
+    assert eintrag is not None
+    assert eintrag.request_id == "a1b2c3"
+    assert eintrag.user == "silo [Silo] for kiosk"
+    assert eintrag.message == "Parsed [x] | y"
+
+
+def test_zeilen_ohne_nummer_oder_ohne_akteur() -> None:
+    ohne_alles = logs._parse("2026-11-16 09:41:07 INFO     nexview.poller [-] | Tick")
+    nur_nummer = logs._parse("2026-11-16 09:41:07 INFO     nexview.http [6db88b] | GET /")
+    nur_akteur = logs._parse("2026-11-16 09:41:07 INFO     nexview.x [u:kiosk [TV]] | Hi")
+
+    assert ohne_alles is not None and ohne_alles.request_id is None and ohne_alles.user is None
+    assert nur_nummer is not None and nur_nummer.request_id == "6db88b" and nur_nummer.user is None
+    assert nur_akteur is not None and nur_akteur.request_id is None
+    assert nur_akteur.user == "kiosk [TV]"
+
+
+def test_geraete_zeilen_stehen_in_ansicht_filter_und_suche() -> None:
+    """Der ganze Weg: geschrieben vom echten Formatter, gelesen von ``read``."""
+    log = _frisches_protokoll()
+    marke = logs.bind_request("6db88b")
+    try:
+        logs.set_actor("kiosk [Apple TV · Wohnzimmer]")
+        log.error("Could not load the shelf")
+    finally:
+        logs.unbind_request(marke)
+    _flush()
+
+    fehler = logs.read(limit=50, level="ERROR")
+    assert [z.message for z in fehler] == ["Could not load the shelf"]
+    assert fehler[0].user == "kiosk [Apple TV · Wohnzimmer]"
+    assert [z.request_id for z in logs.read(limit=50, search="apple tv")] == ["6db88b"]
+
+
 # ---------------------------------------------------------------------------
 # Auffangnetz
 # ---------------------------------------------------------------------------

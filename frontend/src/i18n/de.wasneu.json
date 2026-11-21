@@ -972,6 +972,25 @@
         "small": [
           "Sonst ändert sich nichts, auch nicht an der Datenbank."
         ]
+      },
+      "1.11.2": {
+        "lead": "Neues Symbol und eine Fehlerbehebung im Protokoll.",
+        "sections": [
+          {
+            "title": "Neues Symbol: ein Popcorn-Becher",
+            "where": "Kopfzeile, Anmeldung, Browser-Tab und Home-Bildschirm",
+            "body": "Nexview hat ein neues Zeichen, den Popcorn-Becher für den Heimkino-Abend. Das Logo folgt dem hellen und dunklen Modus, der Browser-Tab folgt dem System. Wer Nexview auf dem Home-Bildschirm abgelegt hat, sieht das neue Symbol nach dem nächsten Hinzufügen."
+          },
+          {
+            "title": "Protokoll zeigt die Zeilen der iPhone- und Fernseher-Apps",
+            "where": "Einstellungen, Protokoll",
+            "body": "Anfragen mit einem API-Schlüssel oder einem gekoppelten Gerät nennen den Schlüssel in Klammern neben dem Benutzer. Solche Zeilen fehlten bisher in der Protokollansicht, im Fehlerzähler und in der Suche. Jetzt sind sie da."
+          }
+        ],
+        "smallTitle": "Außerdem",
+        "small": [
+          "Sonst ändert sich nichts, auch nicht an der Datenbank."
+        ]
       }
     }
   }

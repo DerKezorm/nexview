@@ -972,6 +972,25 @@
         "small": [
           "Nothing else changes, the database neither."
         ]
+      },
+      "1.11.2": {
+        "lead": "A new icon and a fix in the log.",
+        "sections": [
+          {
+            "title": "New icon: a popcorn bucket",
+            "where": "Header, sign-in, browser tab and home screen",
+            "body": "Nexview has a new mark, the popcorn bucket of a movie night at home. The logo follows light and dark mode, the browser tab follows your system. If you put Nexview on your home screen, you see the new icon the next time you add it."
+          },
+          {
+            "title": "The log shows the lines of the iPhone and TV apps",
+            "where": "Settings, Log",
+            "body": "Requests made with an API key or a paired device name the key in brackets next to the user. Such lines were missing from the log view, the error count and the search. Now they are there."
+          }
+        ],
+        "smallTitle": "Also",
+        "small": [
+          "Nothing else changes, the database neither."
+        ]
       }
     }
   }

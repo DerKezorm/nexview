@@ -87,6 +87,10 @@ jobs:
         run: |
           import os, pathlib, re
           text = pathlib.Path("README.md").read_text(encoding="utf-8")
+          # Images and links next to the README are relative; on Docker Hub they would point nowhere, the logo too.
+          repo = os.environ["GITHUB_REPOSITORY"]
+          text = re.sub(r'src="(?!https?:|#)([^"]+)"', rf'src="https://raw.githubusercontent.com/{repo}/main/\1"', text)
+          text = re.sub(r"\]\((?!https?:|#|mailto:)([^)]+)\)", rf"](https://github.com/{repo}/blob/main/\1)", text)
           if len(text.encode()) > 24000:
               cuts = [m.start() for m in re.finditer(r"^## ", text, re.M) if len(text[:m.start()].encode()) <= 23500]
               text = text[:cuts[-1] if cuts else text.rfind("\n\n", 0, 23500)].rstrip()
